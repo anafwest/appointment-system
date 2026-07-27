@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>حجز موعد - قطاع الغرب</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<div class="top-bar">
+<div class="logo-area">
+<div class="logo-icon">&#127970;</div>
+<div>
+<div class="logo-text">أمانة منطقة الرياض</div>
+<div class="logo-sub">قطاع الغرب - إدارة علاقات المستفيدين</div>
+</div>
+</div>
+<div class="top-links">
+<a href="index.html">تسجيل الدخول</a>
+</div>
+</div>
+
+<div style="padding:25px 30px">
+<div class="booking-page">
+
+<div class="booking-hero">
+<h2>حجز موعد</h2>
+<p>قطاع الغرب - إدارة علاقات المستفيدين</p>
+</div>
+
+<div class="booking-card">
+
+<div class="booking-steps">
+<div class="step active" id="step1"><div class="step-num">1</div>بيانات المستفيد</div>
+<div class="step" id="step2"><div class="step-num">2</div>تفاصيل الموعد</div>
+<div class="step" id="step3"><div class="step-num">3</div>تأكيد الحجز</div>
+</div>
+
+<div id="bookingFormArea">
+<div class="booking-form">
+
+<div class="form-group">
+<label>اسم المستفيد الكامل *</label>
+<input type="text" id="bookName" placeholder="الاسم كما في الهوية">
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:15px">
+<div class="form-group">
+<label>رقم الجوال *</label>
+<input type="text" id="bookPhone" placeholder="05XXXXXXXX" maxlength="10">
+</div>
+<div class="form-group">
+<label>رقم الهوية / الإقامة</label>
+<input type="text" id="bookId" placeholder="10XXXXXXXXX" maxlength="10">
+</div>
+</div>
+
+<div class="form-group">
+<label>البريد الإلكتروني</label>
+<input type="email" id="bookEmail" placeholder="example@email.com">
+</div>
+
+<h3 style="margin:20px 0 15px;color:var(--rm-deep-indigo)">اختر الإدارة المختصة *</h3>
+
+<div class="dept-cards">
+<div class="dept-card" onclick="selectDept(this,'إدارة رخص البناء')">
+<div class="dept-icon">&#127959;</div>
+<div class="dept-name">إدارة رخص البناء</div>
+</div>
+<div class="dept-card" onclick="selectDept(this,'إدارة شؤون الأراضي')">
+<div class="dept-icon">&#127968;</div>
+<div class="dept-name">إدارة شؤون الأراضي</div>
+</div>
+<div class="dept-card" onclick="selectDept(this,'إدارة الرخص التجارية والاستثمارية')">
+<div class="dept-icon">&#127970;</div>
+<div class="dept-name">إدارة الرخص التجارية</div>
+</div>
+</div>
+
+<h3 style="margin:20px 0 15px;color:var(--rm-deep-indigo)">اختر التاريخ والوقت *</h3>
+
+<div class="form-group">
+<label>التاريخ</label>
+<input type="date" id="bookDate" onchange="generateTimeSlots()">
+</div>
+
+<div class="form-group">
+<label>الوقت</label>
+<div class="time-slots" id="timeSlots">
+<div style="color:#aaa;padding:10px">اختر التاريخ أولاً</div>
+</div>
+</div>
+
+<div class="form-group">
+<label>موضوع الموعد *</label>
+<textarea id="bookSubject" placeholder="اكتب الموضوع بالتفصيل..."></textarea>
+</div>
+
+<div class="form-group">
+<label>ملاحظات إضافية</label>
+<textarea id="bookNotes" placeholder="أي ملاحظات تريد إضافتها..." style="height:60px"></textarea>
+</div>
+
+<button class="booking-submit" onclick="submitBooking()">تأكيد الحجز</button>
+
+</div>
+</div>
+
+<div class="booking-success" id="bookingSuccess">
+<div class="check">&#10004;</div>
+<h2>تم حجز موعدك بنجاح!</h2>
+<div class="appt-id" id="bookingApptId"></div>
+<p>سيتم إرسال تأكيد على جوالك</p>
+<div style="margin-top:20px;text-align:right;background:var(--rm-light);padding:18px;border-radius:12px" id="bookingSummary"></div>
+<button class="booking-submit" onclick="newBooking()" style="background:var(--rm-green);margin-top:20px">حجز موعد جديد</button>
+</div>
+
+</div>
+
+<div class="booking-lookup">
+<h3>الاستعلام عن موعد</h3>
+<div style="display:flex;gap:10px">
+<input type="text" id="lookupInput" placeholder="أدخل رقم الموعد أو الجوال" style="flex:1;padding:12px;border:2px solid #e8e8e8;border-radius:10px;font-family:inherit">
+<button class="btn btn-primary" onclick="lookupAppointment()">بحث</button>
+</div>
+<div class="lookup-result" id="lookupResult"></div>
+</div>
+
+</div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+<script src="js/config.js"></script>
+<script src="js/appointments.js"></script>
+<script>
+let selectedDept="";
+let selectedTime="";
+let bookedSlots=[];
+
+function selectDept(el,dept){
+    document.querySelectorAll(".dept-card").forEach(c=>c.classList.remove("selected"));
+    el.classList.add("selected");
+    selectedDept=dept;
+}
+
+function generateTimeSlots(){
+    let date=document.getElementById("bookDate").value;
+    if(!date) return;
+
+    let slots=["08:00","08:30","09:00","09:30","10:00","10:30","11:00","11:30","12:00","12:30","14:00","14:30","15:00","15:30","16:00"];
+
+    db.collection("appointments").where("date","==",date).get().then(snap=>{
+        bookedSlots=[];
+        snap.forEach(doc=>{
+            bookedSlots.push(doc.data().time);
+        });
+
+        let html="";
+        slots.forEach(s=>{
+            let isBooked=bookedSlots.includes(s);
+            let cls=isBooked?"time-slot disabled":"time-slot";
+            if(s===selectedTime&&!isBooked) cls+=" selected";
+            html+='<div class="'+cls+'" onclick="'+(isBooked?'':'selectTime(this,\''+s+'\')')+'">'+s+(isBooked?' (محجوز)':'')+'</div>';
+        });
+        document.getElementById("timeSlots").innerHTML=html;
+    });
+}
+
+function selectTime(el,time){
+    document.querySelectorAll(".time-slot").forEach(s=>s.classList.remove("selected"));
+    el.classList.add("selected");
+    selectedTime=time;
+}
+
+function submitBooking(){
+    let name=document.getElementById("bookName").value.trim();
+    let phone=document.getElementById("bookPhone").value.trim();
+    let idNum=document.getElementById("bookId").value.trim();
+    let email=document.getElementById("bookEmail").value.trim();
+    let date=document.getElementById("bookDate").value;
+    let subject=document.getElementById("bookSubject").value.trim();
+    let notes=document.getElementById("bookNotes").value.trim();
+
+    if(!name){alert("يرجى إدخال اسم المستفيد");return;}
+    if(!phone||phone.length<10){alert("يرجى إدخال رقم جوال صحيح");return;}
+    if(!selectedDept){alert("يرجى اختيار الإدارة المختصة");return;}
+    if(!date){alert("يرجى اختيار التاريخ");return;}
+    if(!selectedTime){alert("يرجى اختيار الوقت");return;}
+    if(!subject){alert("يرجى إدخال موضوع الموعد");return;}
+
+    addAppointment({
+        name:name,
+        phone:phone,
+        idNum:idNum,
+        email:email,
+        dept:selectedDept,
+        date:date,
+        time:selectedTime,
+        subject:subject,
+        priority:"عادي",
+        notes:notes,
+        createdBy:"حجز ذاتي - "+name,
+        createdByRole:"public",
+        createdByDept:""
+    }).then(docRef=>{
+        document.getElementById("bookingFormArea").style.display="none";
+        document.getElementById("bookingSuccess").style.display="block";
+        document.getElementById("bookingApptId").innerHTML=docRef.id;
+        document.getElementById("bookingSummary").innerHTML=`
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div><strong>المستفيد:</strong> ${name}</div>
+        <div><strong>الجوال:</strong> ${phone}</div>
+        <div><strong>الإدارة:</strong> ${selectedDept}</div>
+        <div><strong>التاريخ:</strong> ${date}</div>
+        <div><strong>الوقت:</strong> ${selectedTime}</div>
+        <div><strong>الموضوع:</strong> ${subject}</div>
+        </div>
+        `;
+        document.querySelectorAll(".step").forEach(s=>s.classList.remove("active"));
+        document.getElementById("step3").classList.add("active");
+        document.getElementById("step1").classList.add("done");
+        document.getElementById("step2").classList.add("done");
+    }).catch(err=>{
+        alert("حدث خطأ: "+err.message);
+    });
+}
+
+function newBooking(){
+    ["bookName","bookPhone","bookId","bookEmail","bookDate","bookSubject","bookNotes"].forEach(id=>{
+        document.getElementById(id).value="";
+    });
+    selectedDept="";
+    selectedTime="";
+    document.querySelectorAll(".dept-card").forEach(c=>c.classList.remove("selected"));
+    document.getElementById("timeSlots").innerHTML='<div style="color:#aaa;padding:10px">اختر التاريخ أولاً</div>';
+    document.getElementById("bookingFormArea").style.display="block";
+    document.getElementById("bookingSuccess").style.display="none";
+    document.querySelectorAll(".step").forEach(s=>s.classList.remove("active"));
+    document.getElementById("step1").classList.add("active");
+}
+
+function lookupAppointment(){
+    let query=document.getElementById("lookupInput").value.trim().toLowerCase();
+    if(!query){alert("يرجى إدخال رقم الموعد أو الجوال");return;}
+
+    db.collection("appointments").get().then(snap=>{
+        let found=[];
+        snap.forEach(doc=>{
+            let a=doc.data();
+            a.id=doc.id;
+            if(doc.id.toLowerCase().includes(query)||a.phone.includes(query)){
+                found.push(a);
+            }
+        });
+
+        let html="";
+        if(found.length===0){
+            html='<p style="color:#aaa;text-align:center">لا توجد نتائج</p>';
+        }else{
+            found.forEach(a=>{
+                html+='<div style="padding:12px;border-bottom:1px solid #eee"><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
+                html+='<div><strong>رقم الموعد:</strong> '+a.id+'</div>';
+                html+='<div><strong>المستفيد:</strong> '+a.name+'</div>';
+                html+='<div><strong>التاريخ:</strong> '+a.date+' '+a.time+'</div>';
+                html+='<div><strong>الإدارة:</strong> '+a.dept+'</div>';
+                html+='<div><strong>الموضوع:</strong> '+a.subject+'</div>';
+                html+='<div><strong>الحالة:</strong> '+getStatusBadge(a.status)+'</div>';
+                html+='</div></div>';
+            });
+        }
+        document.getElementById("lookupResult").innerHTML=html;
+        document.getElementById("lookupResult").style.display="block";
+    });
+}
+</script>
+</body>
+</html>

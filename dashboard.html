@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>لوحة التحكم - نظام مواعيد قطاع الغرب</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<div class="top-bar">
+<div class="logo-area">
+<div class="logo-icon">&#127970;</div>
+<div>
+<div class="logo-text">أمانة منطقة الرياض</div>
+<div class="logo-sub">قطاع الغرب - إدارة علاقات المستفيدين</div>
+</div>
+</div>
+<div style="display:flex;align-items:center;gap:20px">
+<div class="user-info" id="userInfo"></div>
+<div class="top-links">
+<a href="#" onclick="logoutUser()">تسجيل الخروج</a>
+</div>
+</div>
+</div>
+
+<div class="main-header">
+<div>
+<h1>نظام إدارة المواعيد</h1>
+<div class="subtitle" id="welcomeMsg"></div>
+</div>
+<div class="header-date" id="currentDate"></div>
+</div>
+
+<div class="tabs" id="mainTabs">
+<button class="tab active" onclick="showPage('dashboard')">لوحة التحكم</button>
+<button class="tab" onclick="showPage('appointments')">المواعيد</button>
+<button class="tab" onclick="showPage('add')" id="tabAdd">إضافة موعد</button>
+<button class="tab" onclick="showPage('forward')" id="tabForward">إحالة المواعيد</button>
+<button class="tab" onclick="showPage('reports')" id="tabReports">التقارير</button>
+<button class="tab" onclick="showPage('users')" id="tabUsers">إدارة المستخدمين</button>
+</div>
+
+<div class="page active" id="page-dashboard">
+<div class="dashboard" id="dashboardStats"></div>
+<div class="section">
+<h2>آخر المواعيد</h2>
+<table>
+<thead>
+<tr>
+<th>رقم الموعد</th>
+<th>المستفيد</th>
+<th>الموضوع</th>
+<th>التاريخ</th>
+<th>الوقت</th>
+<th>الحالة</th>
+<th>الإدارة</th>
+</tr>
+</thead>
+<tbody id="dashboardTable"></tbody>
+</table>
+</div>
+</div>
+
+<div class="page" id="page-appointments">
+<h2>المواعيد</h2>
+<div class="section">
+<div class="filters">
+<div>
+<label>بحث</label>
+<input type="text" id="searchAppt" placeholder="ابحث بالاسم أو الموضوع..." onkeyup="renderAppointments()">
+</div>
+<div>
+<label>الحالة</label>
+<select id="filterStatus" onchange="renderAppointments()">
+<option value="">الكل</option>
+<option value="جديد">جديد</option>
+<option value="قيد الانتظار">قيد الانتظار</option>
+<option value="قيد التنفيذ">قيد التنفيذ</option>
+<option value="منجز">منجز</option>
+<option value="مرتجع">مرتجع</option>
+</select>
+</div>
+<div>
+<label>الإدارة</label>
+<select id="filterDept" onchange="renderAppointments()">
+<option value="">الكل</option>
+<option value="قطاع الغرب">قطاع الغرب</option>
+<option value="إدارة رخص البناء">إدارة رخص البناء</option>
+<option value="إدارة شؤون الأراضي">إدارة شؤون الأراضي</option>
+<option value="إدارة الرخص التجارية والاستثمارية">إدارة الرخص التجارية</option>
+</select>
+</div>
+</div>
+</div>
+<div class="section">
+<table>
+<thead>
+<tr>
+<th>رقم الموعد</th>
+<th>المستفيد</th>
+<th>الجوال</th>
+<th>الموضوع</th>
+<th>التاريخ</th>
+<th>الوقت</th>
+<th>الحالة</th>
+<th>الإدارة</th>
+<th>إجراءات</th>
+</tr>
+</thead>
+<tbody id="appointmentsTable"></tbody>
+</table>
+</div>
+</div>
+
+<div class="page" id="page-add">
+<h2>إضافة موعد جديد</h2>
+<div class="section">
+<div class="form-grid">
+<div class="form-group">
+<label>اسم المستفيد *</label>
+<input type="text" id="addName" placeholder="اسم المستفيد">
+</div>
+<div class="form-group">
+<label>رقم الجوال *</label>
+<input type="text" id="addPhone" placeholder="05XXXXXXXX" maxlength="10">
+</div>
+<div class="form-group">
+<label>رقم الهوية / الإقامة</label>
+<input type="text" id="addId" placeholder="رقم الهوية">
+</div>
+<div class="form-group">
+<label>الموضوع *</label>
+<input type="text" id="addSubject" placeholder="موضوع الموعد">
+</div>
+<div class="form-group">
+<label>التاريخ *</label>
+<input type="date" id="addDate">
+</div>
+<div class="form-group">
+<label>الوقت *</label>
+<input type="time" id="addTime">
+</div>
+<div class="form-group">
+<label>الإدارة المختصة *</label>
+<select id="addDept">
+<option value="">اختر الإدارة</option>
+<option value="قطاع الغرب">قطاع الغرب (الإدارة الرئيسية)</option>
+<option value="إدارة رخص البناء">إدارة رخص البناء</option>
+<option value="إدارة شؤون الأراضي">إدارة شؤون الأراضي</option>
+<option value="إدارة الرخص التجارية والاستثمارية">إدارة الرخص التجارية والاستثمارية</option>
+</select>
+</div>
+<div class="form-group">
+<label>الأولوية</label>
+<select id="addPriority">
+<option value="عادي">عادي</option>
+<option value="مهم">مهم</option>
+<option value="عاجل">عاجل</option>
+</select>
+</div>
+<div class="form-group" style="grid-column:1/-1">
+<label>ملاحظات</label>
+<textarea id="addNotes" placeholder="أي ملاحظات إضافية..."></textarea>
+</div>
+</div>
+<div style="margin-top:15px">
+<button class="btn btn-primary" onclick="handleAddAppointment()">حفظ الموعد</button>
+<button class="btn btn-warning" onclick="resetAddForm()" style="margin-right:10px">مسح النموذج</button>
+</div>
+</div>
+</div>
+
+<div class="page" id="page-forward">
+<h2>إحالة المواعيد للإدارات</h2>
+<div class="section">
+<h2>المواعيد الجاهزة للإحالة</h2>
+<table>
+<thead>
+<tr>
+<th>رقم الموعد</th>
+<th>المستفيد</th>
+<th>الموضوع</th>
+<th>التاريخ</th>
+<th>الإدارة الحالية</th>
+<th>إجراء</th>
+</tr>
+</thead>
+<tbody id="forwardTable"></tbody>
+</table>
+</div>
+</div>
+
+<div class="page" id="page-reports">
+<h2>التقارير</h2>
+<div class="section">
+<div class="filters">
+<div>
+<label>من تاريخ</label>
+<input type="date" id="reportFrom" onchange="buildReport()">
+</div>
+<div>
+<label>إلى تاريخ</label>
+<input type="date" id="reportTo" onchange="buildReport()">
+</div>
+<div>
+<label>الإدارة</label>
+<select id="reportDept" onchange="buildReport()">
+<option value="">الكل</option>
+<option value="قطاع الغرب">قطاع الغرب</option>
+<option value="إدارة رخص البناء">إدارة رخص البناء</option>
+<option value="إدارة شؤون الأراضي">إدارة شؤون الأراضي</option>
+<option value="إدارة الرخص التجارية والاستثمارية">إدارة الرخص التجارية</option>
+</select>
+</div>
+</div>
+</div>
+<div class="dashboard" id="reportKPI"></div>
+<div class="section">
+<h2>المواعيد في الفترة المحددة</h2>
+<table>
+<thead>
+<tr>
+<th>رقم</th>
+<th>المستفيد</th>
+<th>الموضوع</th>
+<th>التاريخ</th>
+<th>الحالة</th>
+<th>الإدارة</th>
+</tr>
+</thead>
+<tbody id="reportTable"></tbody>
+</table>
+</div>
+</div>
+
+<div class="page" id="page-users">
+<h2>إدارة المستخدمين</h2>
+<div class="section">
+<h3>إضافة مستخدم جديد</h3>
+<div class="form-grid" style="margin-top:15px">
+<div class="form-group">
+<label>الاسم الكامل *</label>
+<input type="text" id="newUserName" placeholder="اسم المستخدم">
+</div>
+<div class="form-group">
+<label>البريد الإلكتروني *</label>
+<input type="email" id="newUserEmail" placeholder="email@example.com">
+</div>
+<div class="form-group">
+<label>كلمة المرور *</label>
+<input type="password" id="newUserPassword" placeholder="كلمة المرور">
+</div>
+<div class="form-group">
+<label>الصلاحية *</label>
+<select id="newUserRole">
+<option value="registration">مسؤول تسجيل مواعيد</option>
+<option value="department">موظف إدارة</option>
+<option value="admin">مدير نظام</option>
+</select>
+</div>
+<div class="form-group">
+<label>الإدارة</label>
+<select id="newUserDept">
+<option value="">اختر الإدارة</option>
+<option value="قطاع الغرب">قطاع الغرب</option>
+<option value="إدارة رخص البناء">إدارة رخص البناء</option>
+<option value="إدارة شؤون الأراضي">إدارة شؤون الأراضي</option>
+<option value="إدارة الرخص التجارية والاستثمارية">إدارة الرخص التجارية والاستثمارية</option>
+</select>
+</div>
+</div>
+<button class="btn btn-primary" onclick="handleCreateUser()" style="margin-top:15px">إنشاء حساب</button>
+</div>
+<div class="section">
+<h3>المستخدمون الحاليون</h3>
+<table>
+<thead>
+<tr>
+<th>الاسم</th>
+<th>البريد</th>
+<th>الصلاحية</th>
+<th>الإدارة</th>
+</tr>
+</thead>
+<tbody id="usersTable"></tbody>
+</table>
+</div>
+</div>
+
+<div class="modal" id="detailsModal">
+<div class="modal-content">
+<button class="modal-close" onclick="closeModal('detailsModal')">&times;</button>
+<div id="detailsModalBody"></div>
+</div>
+</div>
+
+<div class="modal" id="forwardModal">
+<div class="modal-content">
+<button class="modal-close" onclick="closeModal('forwardModal')">&times;</button>
+<h2>إحالة الموعد</h2>
+<div id="forwardModalBody"></div>
+</div>
+</div>
+
+<div class="modal" id="noteModal">
+<div class="modal-content">
+<button class="modal-close" onclick="closeModal('noteModal')">&times;</button>
+<h2>إضافة ملاحظة</h2>
+<div id="noteModalBody"></div>
+</div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+<script src="js/config.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/appointments.js"></script>
+<script>
+let currentUser=null;
+let allAppointments=[];
+
+document.getElementById("currentDate").innerHTML=new Date().toLocaleDateString("ar-SA",{weekday:"long",year:"numeric",month:"long",day:"numeric"});
+
+requireAuth(user=>{
+    currentUser=user;
+    document.getElementById("userInfo").innerHTML=user.name+' <span class="role-badge">'+getRoleName(user.role)+'</span>';
+    document.getElementById("welcomeMsg").textContent="مرحباً "+user.name+" - "+getRoleName(user.role);
+    setupTabsByRole();
+    loadDashboard();
+});
+
+function getRoleName(role){
+    if(role==="admin") return "مدير النظام";
+    if(role==="registration") return "مسؤول التسجيل";
+    if(role==="department") return "موظف إدارة";
+    return role;
+}
+
+function setupTabsByRole(){
+    let r=currentUser.role;
+    document.getElementById("tabAdd").style.display=(r==="admin"||r==="registration")?"inline-block":"none";
+    document.getElementById("tabForward").style.display=(r==="admin")?"inline-block":"none";
+    document.getElementById("tabReports").style.display=(r==="admin")?"inline-block":"none";
+    document.getElementById("tabUsers").style.display=(r==="admin")?"inline-block":"none";
+
+    if(r==="department"){
+        document.getElementById("filterDept").value=currentUser.dept;
+        document.getElementById("filterDept").disabled=true;
+    }
+}
+
+function showPage(page){
+    document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
+    document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+    document.getElementById("page-"+page).classList.add("active");
+    let tabs=document.querySelectorAll(".tab");
+    let pages=["dashboard","appointments","add","forward","reports","users"];
+    let idx=pages.indexOf(page);
+    if(idx>=0) tabs[idx].classList.add("active");
+    if(page==="dashboard") loadDashboard();
+    if(page==="appointments") loadAppointments();
+    if(page==="forward") loadForward();
+    if(page==="reports") buildReport();
+    if(page==="users") loadUsers();
+}
+
+async function loadDashboard(){
+    let depts=currentUser.role==="department"?currentUser.dept:null;
+    let stats=await getAppointmentStats(depts);
+    document.getElementById("dashboardStats").innerHTML=`
+    <div class="card card-total"><div class="icon">&#128197;</div><h3>إجمالي المواعيد</h3><div class="value">${stats.total}</div></div>
+    <div class="card card-pending"><div class="icon">&#9203;</div><h3>قيد الانتظار</h3><div class="value">${stats.pending}</div></div>
+    <div class="card card-active"><div class="icon">&#128222;</div><h3>قيد التنفيذ</h3><div class="value">${stats.active}</div></div>
+    <div class="card card-done"><div class="icon">&#9989;</div><h3>منجز</h3><div class="value">${stats.done}</div></div>
+    <div class="card card-returned"><div class="icon">&#128260;</div><h3>مرتجع</h3><div class="value">${stats.returned}</div></div>
+    `;
+    try{
+        let apts=await getAppointmentsForUser(currentUser.role,currentUser.dept);
+        let recent=apts.slice(0,5);
+        let html="";
+        recent.forEach(a=>{
+            html+='<tr onclick="showDetails(\''+a.id+'\')" style="cursor:pointer"><td>'+a.id+'</td><td>'+a.name+'</td><td>'+a.subject+'</td><td>'+a.date+'</td><td>'+a.time+'</td><td>'+getStatusBadge(a.status)+'</td><td>'+a.dept+'</td></tr>';
+        });
+        document.getElementById("dashboardTable").innerHTML=html;
+    }catch(e){
+        console.error(e);
+    }
+}
+
+async function loadAppointments(){
+    try{
+        allAppointments=await getAppointmentsForUser(currentUser.role,currentUser.dept);
+        renderAppointments();
+    }catch(e){
+        console.error(e);
+    }
+}
+
+function renderAppointments(){
+    let search=(document.getElementById("searchAppt").value||"").toLowerCase();
+    let status=document.getElementById("filterStatus").value;
+    let dept=document.getElementById("filterDept").value;
+
+    let filtered=allAppointments.filter(a=>{
+        if(search&&!a.name.toLowerCase().includes(search)&&!a.subject.toLowerCase().includes(search)&&!(a.id&&a.id.toLowerCase().includes(search))) return false;
+        if(status&&a.status!==status) return false;
+        if(dept&&a.dept!==dept) return false;
+        return true;
+    });
+
+    let html="";
+    filtered.forEach(a=>{
+        let actions='<button class="btn btn-primary btn-sm" onclick="showDetails(\''+a.id+'\')">تفاصيل</button> ';
+        if(currentUser.role==="admin"){
+            actions+='<button class="btn btn-warning btn-sm" onclick="openForward(\''+a.id+'\')">إحالة</button> ';
+        }
+        actions+='<button class="btn btn-success btn-sm" onclick="openNote(\''+a.id+'\')">ملاحظة</button>';
+        html+='<tr><td>'+a.id+'</td><td>'+a.name+'</td><td>'+a.phone+'</td><td>'+a.subject+'</td><td>'+a.date+'</td><td>'+a.time+'</td><td>'+getStatusBadge(a.status)+'</td><td>'+a.dept+'</td><td>'+actions+'</td></tr>';
+    });
+
+    document.getElementById("appointmentsTable").innerHTML=html||'<tr><td colspan="9" style="text-align:center;color:#aaa">لا توجد مواعيد</td></tr>';
+}
+
+async function loadForward(){
+    try{
+        let apts=await getAppointments();
+        let pending=apts.filter(a=>a.status!=="منجز");
+        let html="";
+        pending.forEach(a=>{
+            html+='<tr><td>'+a.id+'</td><td>'+a.name+'</td><td>'+a.subject+'</td><td>'+a.date+'</td><td>'+a.dept+'</td><td><button class="btn btn-primary btn-sm" onclick="openForward(\''+a.id+'\')">إحالة</button> <button class="btn btn-success btn-sm" onclick="handleMarkDone(\''+a.id+'\')">منجز</button></td></tr>';
+        });
+        document.getElementById("forwardTable").innerHTML=html||'<tr><td colspan="6" style="text-align:center;color:#aaa">لا توجد مواعيد للإحالة</td></tr>';
+    }catch(e){
+        console.error(e);
+    }
+}
+
+function handleAddAppointment(){
+    let name=document.getElementById("addName").value.trim();
+    let phone=document.getElementById("addPhone").value.trim();
+    let idNum=document.getElementById("addId").value.trim();
+    let subject=document.getElementById("addSubject").value.trim();
+    let date=document.getElementById("addDate").value;
+    let time=document.getElementById("addTime").value;
+    let dept=document.getElementById("addDept").value;
+    let priority=document.getElementById("addPriority").value;
+    let notes=document.getElementById("addNotes").value.trim();
+
+    if(!name||!phone||!subject||!date||!time||!dept){
+        alert("يرجى ملء جميع الحقول المطلوبة");
+        return;
+    }
+
+    addAppointment({
+        name:name,
+        phone:phone,
+        idNum:idNum,
+        subject:subject,
+        date:date,
+        time:time,
+        dept:dept,
+        priority:priority,
+        notes:notes,
+        createdBy:currentUser.name,
+        createdByRole:currentUser.role,
+        createdByDept:currentUser.dept||""
+    }).then(()=>{
+        alert("تم إضافة الموعد بنجاح");
+        resetAddForm();
+        showPage("appointments");
+    }).catch(err=>{
+        alert("حدث خطأ: "+err.message);
+    });
+}
+
+function resetAddForm(){
+    ["addName","addPhone","addId","addSubject","addDate","addTime","addNotes"].forEach(id=>{
+        document.getElementById(id).value="";
+    });
+    document.getElementById("addDept").value="";
+    document.getElementById("addPriority").value="عادي";
+}
+
+function openForward(id){
+    let apt=allAppointments.find(a=>a.id===id);
+    if(!apt){
+        getAppointmentById(id).then(a=>{apt=a;showForwardModal(apt);});
+        return;
+    }
+    showForwardModal(apt);
+}
+
+function showForwardModal(apt){
+    let depts=["قطاع الغرب","إدارة رخص البناء","إدارة شؤون الأراضي","إدارة الرخص التجارية والاستثمارية"];
+    let html=`
+    <div style="margin-bottom:15px">
+    <strong>رقم الموعد:</strong> ${apt.id}<br>
+    <strong>المستفيد:</strong> ${apt.name}<br>
+    <strong>الموضوع:</strong> ${apt.subject}<br>
+    <strong>الإدارة الحالية:</strong> ${apt.dept}
+    </div>
+    <div class="form-group">
+    <label>تحويل إلى إدارة</label>
+    <select id="forwardTo">${depts.map(d=>'<option value="'+d+'" '+(d===apt.dept?'selected':'')+'>'+d+'</option>').join('')}</select>
+    </div>
+    <div class="form-group">
+    <label>ملاحظات الإحالة</label>
+    <textarea id="forwardNotes" placeholder="ملاحظات..."></textarea>
+    </div>
+    <div class="form-group">
+    <label>تحديث الحالة</label>
+    <select id="forwardStatus">
+    <option value="جديد">جديد</option>
+    <option value="قيد الانتظار">قيد الانتظار</option>
+    <option value="قيد التنفيذ">قيد التنفيذ</option>
+    <option value="منجز">منجز</option>
+    <option value="مرتجع">مرتجع</option>
+    </select>
+    </div>
+    <button class="btn btn-primary" onclick="handleForward('${apt.id}')">تنفيذ الإحالة</button>
+    `;
+    document.getElementById("forwardModalBody").innerHTML=html;
+    document.getElementById("forwardModal").classList.add("active");
+}
+
+function handleForward(id){
+    let newDept=document.getElementById("forwardTo").value;
+    let notes=document.getElementById("forwardNotes").value.trim();
+    let newStatus=document.getElementById("forwardStatus").value;
+
+    forwardAppointment(id,newDept,newStatus,notes,currentUser.name).then(()=>{
+        closeModal("forwardModal");
+        alert("تم إحالة الموعد بنجاح");
+        loadAppointments();
+        loadDashboard();
+    }).catch(err=>{
+        alert("حدث خطأ: "+err.message);
+    });
+}
+
+function handleMarkDone(id){
+    markAppointmentDone(id,currentUser.name).then(()=>{
+        alert("تم التحديد كمنجز");
+        loadAppointments();
+        loadForward();
+        loadDashboard();
+    }).catch(err=>{
+        alert("حدث خطأ: "+err.message);
+    });
+}
+
+function showDetails(id){
+    getAppointmentById(id).then(apt=>{
+        if(!apt){alert("الموعد غير موجود");return;}
+        let historyHtml="";
+        (apt.history||[]).forEach(h=>{
+            historyHtml+='<div class="timeline-item"><div class="time">'+h.date+' - '+h.by+'</div><div class="content">'+h.action+'</div></div>';
+        });
+
+        let attachHtml="";
+        (apt.attachments||[]).forEach(a=>{
+            attachHtml+='<div class="attachment-item"><span>'+a.name+'</span><a href="'+a.url+'" target="_blank">تحميل</a></div>';
+        });
+        if(!apt.attachments||apt.attachments.length===0) attachHtml='<p style="color:#aaa;font-size:13px">لا توجد مرفقات</p>';
+
+        let html=`
+        <h2>تفاصيل الموعد ${apt.id}</h2>
+        <div class="form-grid" style="margin:15px 0">
+        <div><strong>المستفيد:</strong> ${apt.name}</div>
+        <div><strong>الجوال:</strong> ${apt.phone}</div>
+        <div><strong>الهوية:</strong> ${apt.idNum||'-'}</div>
+        <div><strong>الموضوع:</strong> ${apt.subject}</div>
+        <div><strong>التاريخ:</strong> ${apt.date}</div>
+        <div><strong>الوقت:</strong> ${apt.time}</div>
+        <div><strong>الإدارة:</strong> ${apt.dept}</div>
+        <div><strong>الحالة:</strong> ${getStatusBadge(apt.status)}</div>
+        <div><strong>الأولوية:</strong> ${apt.priority}</div>
+        <div><strong>ملاحظات:</strong> ${apt.notes||'-'}</div>
+        </div>
+        <h3 style="margin-top:20px">المرفقات</h3>
+        ${attachHtml}
+        <div class="form-group" style="margin-top:10px">
+        <label>إرفاق ملف</label>
+        <input type="file" id="attachFile_${apt.id}" onchange="handleUploadAttachment('${apt.id}')">
+        </div>
+        <h3 style="margin-top:20px">السجل</h3>
+        ${historyHtml}
+        `;
+        document.getElementById("detailsModalBody").innerHTML=html;
+        document.getElementById("detailsModal").classList.add("active");
+    });
+}
+
+function handleUploadAttachment(aptId){
+    let input=document.getElementById("attachFile_"+aptId);
+    if(!input.files.length) return;
+    let file=input.files[0];
+    uploadAttachment(file,aptId).then(()=>{
+        alert("تم رفع المرفق بنجاح");
+        showDetails(aptId);
+    }).catch(err=>{
+        alert("حدث خطأ في رفع الملف: "+err.message);
+    });
+}
+
+function openNote(id){
+    let html=`
+    <div style="margin-bottom:15px"><strong>رقم الموعد:</strong> ${id}</div>
+    <div class="form-group">
+    <label>الملاحظة</label>
+    <textarea id="noteText" class="note-input" placeholder="اكتب ملاحظتك هنا..."></textarea>
+    </div>
+    <button class="btn btn-primary" onclick="handleAddNote('${id}')">حفظ الملاحظة</button>
+    `;
+    document.getElementById("noteModalBody").innerHTML=html;
+    document.getElementById("noteModal").classList.add("active");
+}
+
+function handleAddNote(id){
+    let note=document.getElementById("noteText").value.trim();
+    if(!note){alert("يرجى كتابة ملاحظة");return;}
+    addAppointmentNote(id,note,currentUser.name).then(()=>{
+        closeModal("noteModal");
+        alert("تمت إضافة الملاحظة بنجاح");
+        renderAppointments();
+    }).catch(err=>{
+        alert("حدث خطأ: "+err.message);
+    });
+}
+
+function closeModal(id){
+    document.getElementById(id).classList.remove("active");
+}
+
+async function loadUsers(){
+    try{
+        let users=await getAllUsers();
+        let html="";
+        users.forEach(u=>{
+            html+='<tr><td>'+u.name+'</td><td>'+u.email+'</td><td>'+getRoleName(u.role)+'</td><td>'+u.dept+'</td></tr>';
+        });
+        document.getElementById("usersTable").innerHTML=html;
+    }catch(e){
+        console.error(e);
+    }
+}
+
+function handleCreateUser(){
+    let name=document.getElementById("newUserName").value.trim();
+    let email=document.getElementById("newUserEmail").value.trim();
+    let pass=document.getElementById("newUserPassword").value;
+    let role=document.getElementById("newUserRole").value;
+    let dept=document.getElementById("newUserDept").value;
+
+    if(!name||!email||!pass){
+        alert("يرجى ملء جميع الحقول المطلوبة");
+        return;
+    }
+
+    let prevUser=auth.currentUser;
+    createUser(name,email,pass,role,dept).then(()=>{
+        auth.updateCurrentUser(prevUser);
+        document.getElementById("newUserName").value="";
+        document.getElementById("newUserEmail").value="";
+        document.getElementById("newUserPassword").value="";
+        loadUsers();
+    });
+}
+
+async function buildReport(){
+    let from=document.getElementById("reportFrom").value;
+    let to=document.getElementById("reportTo").value;
+    let dept=document.getElementById("reportDept").value;
+
+    try{
+        let filters={};
+        if(dept) filters.dept=dept;
+        let apts=await getAppointments(filters);
+
+        if(from) apts=apts.filter(a=>a.date>=from);
+        if(to) apts=apts.filter(a=>a.date<=to);
+
+        let total=apts.length;
+        let done=apts.filter(x=>x.status==="منجز").length;
+        let pending=apts.filter(x=>x.status==="قيد الانتظار").length;
+        let active=apts.filter(x=>x.status==="قيد التنفيذ").length;
+        let returned=apts.filter(x=>x.status==="مرتجع").length;
+        let rate=total>0?((done/total)*100).toFixed(1):0;
+
+        document.getElementById("reportKPI").innerHTML=`
+        <div class="card card-total"><div class="icon">&#128197;</div><h3>إجمالي</h3><div class="value">${total}</div></div>
+        <div class="card card-pending"><div class="icon">&#9203;</div><h3>قيد الانتظار</h3><div class="value">${pending}</div></div>
+        <div class="card card-active"><div class="icon">&#128222;</div><h3>قيد التنفيذ</h3><div class="value">${active}</div></div>
+        <div class="card card-done"><div class="icon">&#9989;</div><h3>منجز</h3><div class="value">${done}</div></div>
+        <div class="card card-returned"><div class="icon">&#128260;</div><h3>مرتجع</h3><div class="value">${returned}</div></div>
+        <div class="card card-total"><div class="icon">&#128200;</div><h3>نسبة الإنجاز</h3><div class="value">${rate}%</div></div>
+        `;
+
+        let html="";
+        apts.forEach(a=>{
+            html+='<tr><td>'+a.id+'</td><td>'+a.name+'</td><td>'+a.subject+'</td><td>'+a.date+'</td><td>'+getStatusBadge(a.status)+'</td><td>'+a.dept+'</td></tr>';
+        });
+        document.getElementById("reportTable").innerHTML=html||'<tr><td colspan="6" style="text-align:center;color:#aaa">لا توجد بيانات</td></tr>';
+    }catch(e){
+        console.error(e);
+    }
+}
+</script>
+</body>
+</html>

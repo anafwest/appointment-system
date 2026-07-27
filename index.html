@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>نظام مواعيد قطاع الغرب - تسجيل الدخول</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<div class="login-page">
+<div class="login-card">
+<div class="logo-icon">&#127970;</div>
+<h1>نظام إدارة المواعيد</h1>
+<div class="subtitle">قطاع الغرب - أمانة منطقة الرياض</div>
+
+<div class="error-msg"></div>
+
+<div class="form-group">
+<label>البريد الإلكتروني</label>
+<input type="email" id="loginEmail" placeholder="example@email.com">
+</div>
+
+<div class="form-group">
+<label>كلمة المرور</label>
+<input type="password" id="loginPassword" placeholder="••••••••">
+</div>
+
+<button class="btn btn-primary" onclick="handleLogin()">تسجيل الدخول</button>
+
+<div class="links">
+<a href="booking.html">حجز موعد كمستفيد</a>
+</div>
+</div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+<script src="js/config.js"></script>
+<script src="js/auth.js"></script>
+<script>
+document.getElementById("loginPassword").addEventListener("keypress",function(e){
+    if(e.key==="Enter") handleLogin();
+});
+function handleLogin(){
+    let email=document.getElementById("loginEmail").value.trim();
+    let pass=document.getElementById("loginPassword").value;
+    if(!email||!pass){
+        showError("يرجى ملء جميع الحقول");
+        return;
+    }
+    loginUser(email,pass);
+}
+auth.onAuthStateChanged(user=>{
+    if(user) window.location.href="dashboard.html";
+});
+</script>
+</body>
+</html>
