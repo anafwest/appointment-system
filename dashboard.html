@@ -120,10 +120,14 @@
 <h2>إضافة موعد جديد</h2>
 <div class="section">
 <div class="form-grid">
-<div class="form-group">
-<label>اسم المستفيد *</label>
-<input type="text" id="addName" placeholder="اسم المستفيد">
-</div>
+                <div class="form-group">
+                    <label>رقم الموعد *</label>
+                    <input type="text" id="addIdNum" placeholder="مثال: APP-2026-001">
+                </div>
+                <div class="form-group">
+                    <label>اسم المستفيد *</label>
+                    <input type="text" id="addName" placeholder="اسم المستفيد">
+                </div>
 <div class="form-group">
 <label>رقم الجوال *</label>
 <input type="text" id="addPhone" placeholder="05XXXXXXXX" maxlength="10">
@@ -505,6 +509,7 @@ function previewAttachments(){
 }
 
 function handleAddAppointment(){
+    let apptId=document.getElementById("addIdNum").value.trim();
     let name=document.getElementById("addName").value.trim();
     let phone=document.getElementById("addPhone").value.trim();
     let idNum=document.getElementById("addId").value.trim();
@@ -515,51 +520,65 @@ function handleAddAppointment(){
     let priority=document.getElementById("addPriority").value;
     let notes=document.getElementById("addNotes").value.trim();
 
-    if(!name||!phone||!subject||!date||!time||!dept){
+    if(!apptId||!name||!phone||!subject||!date||!time||!dept){
         alert("يرجى ملء جميع الحقول المطلوبة");
         return;
     }
 
-    addAppointment({
-        name:name,
-        phone:phone,
-        idNum:idNum||"",
-        subject:subject,
-        date:date,
-        time:time,
-        dept:dept,
-        priority:priority,
-        notes:notes,
-        createdBy:currentUser.name,
-        createdByRole:currentUser.role,
-        createdByDept:currentUser.dept||""
-    }).then(async(docRef)=>{
+    db.collection("appointments").doc(apptId).get().then(doc=>{
+        if(doc.exists){
+            alert("رقم الموعد موجود مسبقاً، الرجاء استخدام رقم آخر");
+            throw new Error("duplicate");
+        }
+        return db.collection("appointments").doc(apptId).set({
+            name:name,
+            phone:phone,
+            idNum:idNum||"",
+            subject:subject,
+            date:date,
+            time:time,
+            dept:dept,
+            priority:priority,
+            notes:notes,
+            status:"جديد",
+            createdBy:currentUser.name,
+            createdByRole:currentUser.role,
+            createdByDept:currentUser.dept||"",
+            createdAt:firebase.firestore.FieldValue.serverTimestamp(),
+            history:[{
+                action:"إنشاء الموعد",
+                date:new Date().toISOString(),
+                by:currentUser.name
+            }],
+            attachments:[]
+        });
+    }).then(async()=>{
         if(pendingUploads.length>0){
             for(let file of pendingUploads){
                 try{
-                    await uploadAttachment(file,docRef.id);
+                    await uploadAttachment(file,apptId);
                 }catch(e){
                     console.error("فشل رفع المرفق:",e);
                 }
             }
         }
-        alert("تم إضافة الموعد بنجاح: "+docRef.id);
+        alert("تم إضافة الموعد بنجاح: "+apptId);
         resetAddForm();
         pendingUploads=[];
 
         if(currentUser.role==="admin"){
             showPage("forward");
-            setTimeout(()=>{openForward(docRef.id);},300);
+            setTimeout(()=>{openForward(apptId);},300);
         }else{
             showPage("appointments");
         }
     }).catch(err=>{
-        alert("حدث خطأ: "+err.message);
+        if(err.message!=="duplicate") alert("حدث خطأ: "+err.message);
     });
 }
 
 function resetAddForm(){
-    ["addName","addPhone","addId","addSubject","addDate","addTime","addNotes"].forEach(id=>{
+    ["addIdNum","addName","addPhone","addId","addSubject","addDate","addTime","addNotes"].forEach(id=>{
         document.getElementById(id).value="";
     });
     document.getElementById("addDept").value="";
