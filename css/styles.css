@@ -841,6 +841,29 @@ color:white;
 font-size:13px;
 }
 
+.notification-badge{
+    background:#ff4757;
+    color:white;
+    padding:6px 14px;
+    border-radius:20px;
+    font-size:12px;
+    font-weight:700;
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    gap:6px;
+    animation:pulse 2s infinite;
+}
+@keyframes pulse{
+    0%,100%{transform:scale(1)}
+    50%{transform:scale(1.05)}
+}
+.notification-badge span{
+    background:rgba(255,255,255,.3);
+    padding:2px 8px;
+    border-radius:10px;
+    font-size:11px;
+}
 .user-info .role-badge{
 background:rgba(255,255,255,.2);
 padding:3px 10px;
