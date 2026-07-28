@@ -601,13 +601,8 @@ function handleAddAppointment(){
         alert("تم إضافة الموعد بنجاح: "+apptId);
         resetAddForm();
         pendingUploads=[];
-
-        if(currentUser.role==="admin"){
-            showPage("forward");
-            setTimeout(()=>{openForward(apptId);},300);
-        }else{
-            showPage("appointments");
-        }
+        showPage("appointments");
+        loadAppointments();
     }).catch(err=>{
         if(err.message!=="duplicate") alert("حدث خطأ: "+err.message);
     });
