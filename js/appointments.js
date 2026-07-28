@@ -33,6 +33,7 @@ function forwardAppointment(id,newDept,newStatus,notes,by){
         return db.collection("appointments").doc(id).update({
             dept:newDept,
             status:newStatus,
+            forwardDate:new Date().toISOString(),
             history:firebase.firestore.FieldValue.arrayUnion({
                 action:"إحالة من "+oldDept+" إلى "+newDept+(notes?" - "+notes:""),
                 date:new Date().toISOString(),
@@ -43,13 +44,25 @@ function forwardAppointment(id,newDept,newStatus,notes,by){
 }
 
 function markAppointmentDone(id,by){
-    return db.collection("appointments").doc(id).update({
-        status:"منجز",
-        history:firebase.firestore.FieldValue.arrayUnion({
-            action:"تم التحديد كمنجز",
-            date:new Date().toISOString(),
-            by:by
-        })
+    let now=new Date().toISOString();
+    return db.collection("appointments").doc(id).get().then(doc=>{
+        let apt=doc.data();
+        let created=apt.createdAt?apt.createdAt.toDate():new Date(apt.history?.[0]?.date||now);
+        let diffMs=new Date()-created;
+        let diffDays=Math.floor(diffMs/(1000*60*60*24));
+        let diffHours=Math.floor((diffMs%(1000*60*60*24))/(1000*60*60));
+        let duration=diffDays+" يوم "+diffHours+" ساعة";
+        return db.collection("appointments").doc(id).update({
+            status:"منجز",
+            doneDate:now,
+            duration:duration,
+            doneBy:by,
+            history:firebase.firestore.FieldValue.arrayUnion({
+                action:"تم التحديد كمنجز - المدة: "+duration,
+                date:now,
+                by:by
+            })
+        });
     });
 }
 
@@ -144,6 +157,13 @@ function getAppointmentStats(dept){
         });
         return {total,pending,active,done,returned};
     });
+}
+
+function getCompletedCountForUser(userName){
+    return db.collection("appointments")
+        .where("status","==","منجز")
+        .where("createdBy","==",userName)
+        .get().then(snap=>snap.size);
 }
 
 function getStatusBadge(status){
