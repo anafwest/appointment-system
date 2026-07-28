@@ -37,12 +37,6 @@ align-items:center;
     gap:12px;
 }
 
-.logo-img{
-    width:30px;
-    height:30px;
-    object-fit:contain;
-}
-
 .top-bar .logo-icon{
     width:45px;
     height:45px;
@@ -756,14 +750,6 @@ box-shadow:0 20px 60px rgba(0,0,0,.2);
 text-align:center;
 }
 
-.login-logo{
-    width:55px;
-    height:55px;
-    object-fit:contain;
-    margin:0 auto 15px;
-    display:block;
-}
-
 .login-card .logo-icon{
     width:80px;
     height:80px;
@@ -1067,12 +1053,5 @@ margin-top:10px;
     .time-slots{
         grid-template-columns:repeat(3,1fr);
     }
-    .logo-img{
-        width:25px;
-        height:25px;
-    }
-    .login-logo{
-        width:45px;
-        height:45px;
-    }
+
 }
