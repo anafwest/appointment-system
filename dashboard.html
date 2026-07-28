@@ -594,7 +594,7 @@ function handleAddAppointment(){
                 try{
                     await uploadAttachment(file,apptId);
                 }catch(e){
-                    console.error("فشل رفع المرفق:",e);
+                    alert("فشل رفع المرفق "+file.name+": "+e.message);
                 }
             }
         }
