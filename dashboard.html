@@ -39,6 +39,7 @@
 <button class="tab" onclick="showPage('appointments')">المواعيد</button>
 <button class="tab" onclick="showPage('add')" id="tabAdd">إضافة موعد</button>
 <button class="tab" onclick="showPage('forward')" id="tabForward">إحالة المواعيد</button>
+<button class="tab" onclick="showPage('kpi')" id="tabKPI">مؤشرات الأداء</button>
 <button class="tab" onclick="showPage('reports')" id="tabReports">التقارير</button>
 <button class="tab" onclick="showPage('users')" id="tabUsers">إدارة المستخدمين</button>
 </div>
@@ -69,8 +70,8 @@
 <div class="section">
 <div class="filters">
 <div>
-<label>بحث</label>
-<input type="text" id="searchAppt" placeholder="ابحث بالاسم أو الموضوع..." onkeyup="renderAppointments()">
+<label>بحث شامل</label>
+<input type="text" id="searchAppt" placeholder="ابحث بالاسم - رقم الجوال - الهوية - الموضوع..." onkeyup="renderAppointments()">
 </div>
 <div>
 <label>الحالة</label>
@@ -87,10 +88,10 @@
 <label>الإدارة</label>
 <select id="filterDept" onchange="renderAppointments()">
 <option value="">الكل</option>
-<option value="قطاع الغرب">قطاع الغرب</option>
-<option value="إدارة رخص البناء">إدارة رخص البناء</option>
-<option value="إدارة شؤون الأراضي">إدارة شؤون الأراضي</option>
-<option value="إدارة الرخص التجارية والاستثمارية">إدارة الرخص التجارية</option>
+<option value="الإدارة العامة لتنمية المدينة">الإدارة العامة لتنمية المدينة</option>
+<option value="الإدارة العامة للبنية التحتية">الإدارة العامة للبنية التحتية</option>
+<option value="الإدارة العامة للاستدامة البيئية">الإدارة العامة للاستدامة البيئية</option>
+<option value="الإدارة العامة للرقابة">الإدارة العامة للرقابة</option>
 </select>
 </div>
 </div>
@@ -128,7 +129,7 @@
 <input type="text" id="addPhone" placeholder="05XXXXXXXX" maxlength="10">
 </div>
 <div class="form-group">
-<label>رقم الهوية / الإقامة</label>
+<label>رقم الهوية / الإقامة *</label>
 <input type="text" id="addId" placeholder="رقم الهوية">
 </div>
 <div class="form-group">
@@ -147,10 +148,10 @@
 <label>الإدارة المختصة *</label>
 <select id="addDept">
 <option value="">اختر الإدارة</option>
-<option value="قطاع الغرب">قطاع الغرب (الإدارة الرئيسية)</option>
-<option value="إدارة رخص البناء">إدارة رخص البناء</option>
-<option value="إدارة شؤون الأراضي">إدارة شؤون الأراضي</option>
-<option value="إدارة الرخص التجارية والاستثمارية">إدارة الرخص التجارية والاستثمارية</option>
+<option value="الإدارة العامة لتنمية المدينة">الإدارة العامة لتنمية المدينة</option>
+<option value="الإدارة العامة للبنية التحتية">الإدارة العامة للبنية التحتية</option>
+<option value="الإدارة العامة للاستدامة البيئية">الإدارة العامة للاستدامة البيئية</option>
+<option value="الإدارة العامة للرقابة">الإدارة العامة للرقابة</option>
 </select>
 </div>
 <div class="form-group">
@@ -165,9 +166,14 @@
 <label>ملاحظات</label>
 <textarea id="addNotes" placeholder="أي ملاحظات إضافية..."></textarea>
 </div>
+<div class="form-group" style="grid-column:1/-1">
+<label>المرفقات</label>
+<input type="file" id="addAttachments" multiple onchange="previewAttachments()">
+<div id="attachmentPreview" style="margin-top:10px"></div>
+</div>
 </div>
 <div style="margin-top:15px">
-<button class="btn btn-primary" onclick="handleAddAppointment()">حفظ الموعد</button>
+<button class="btn btn-primary" onclick="handleAddAppointment()">حفظ وإحالة الموعد</button>
 <button class="btn btn-warning" onclick="resetAddForm()" style="margin-right:10px">مسح النموذج</button>
 </div>
 </div>
@@ -176,7 +182,7 @@
 <div class="page" id="page-forward">
 <h2>إحالة المواعيد للإدارات</h2>
 <div class="section">
-<h2>المواعيد الجاهزة للإحالة</h2>
+<h2>المواعيد التي تحتاج إحالة</h2>
 <table>
 <thead>
 <tr>
@@ -189,6 +195,40 @@
 </tr>
 </thead>
 <tbody id="forwardTable"></tbody>
+</table>
+</div>
+</div>
+
+<div class="page" id="page-kpi">
+<h2>مؤشرات الأداء الرئيسية - KPI</h2>
+<div class="filters">
+<div>
+<label>من تاريخ</label>
+<input type="date" id="kpiFrom" onchange="buildKPI()">
+</div>
+<div>
+<label>إلى تاريخ</label>
+<input type="date" id="kpiTo" onchange="buildKPI()">
+</div>
+</div>
+<div class="dashboard" id="kpiCards"></div>
+<div class="section">
+<h3>التوزيع حسب الإدارة</h3>
+<div id="kpiDeptChart" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:15px"></div>
+</div>
+<div class="section">
+<h3>آخر 10 مواعيد</h3>
+<table>
+<thead>
+<tr>
+<th>رقم الموعد</th>
+<th>المستفيد</th>
+<th>الإدارة</th>
+<th>الحالة</th>
+<th>التاريخ</th>
+</tr>
+</thead>
+<tbody id="kpiTable"></tbody>
 </table>
 </div>
 </div>
@@ -209,10 +249,10 @@
 <label>الإدارة</label>
 <select id="reportDept" onchange="buildReport()">
 <option value="">الكل</option>
-<option value="قطاع الغرب">قطاع الغرب</option>
-<option value="إدارة رخص البناء">إدارة رخص البناء</option>
-<option value="إدارة شؤون الأراضي">إدارة شؤون الأراضي</option>
-<option value="إدارة الرخص التجارية والاستثمارية">إدارة الرخص التجارية</option>
+<option value="الإدارة العامة لتنمية المدينة">الإدارة العامة لتنمية المدينة</option>
+<option value="الإدارة العامة للبنية التحتية">الإدارة العامة للبنية التحتية</option>
+<option value="الإدارة العامة للاستدامة البيئية">الإدارة العامة للاستدامة البيئية</option>
+<option value="الإدارة العامة للرقابة">الإدارة العامة للرقابة</option>
 </select>
 </div>
 </div>
@@ -265,10 +305,10 @@
 <label>الإدارة</label>
 <select id="newUserDept">
 <option value="">اختر الإدارة</option>
-<option value="قطاع الغرب">قطاع الغرب</option>
-<option value="إدارة رخص البناء">إدارة رخص البناء</option>
-<option value="إدارة شؤون الأراضي">إدارة شؤون الأراضي</option>
-<option value="إدارة الرخص التجارية والاستثمارية">إدارة الرخص التجارية والاستثمارية</option>
+<option value="الإدارة العامة لتنمية المدينة">الإدارة العامة لتنمية المدينة</option>
+<option value="الإدارة العامة للبنية التحتية">الإدارة العامة للبنية التحتية</option>
+<option value="الإدارة العامة للاستدامة البيئية">الإدارة العامة للاستدامة البيئية</option>
+<option value="الإدارة العامة للرقابة">الإدارة العامة للرقابة</option>
 </select>
 </div>
 </div>
@@ -323,6 +363,9 @@
 <script>
 let currentUser=null;
 let allAppointments=[];
+let pendingUploads=[];
+
+const DEPTS=["الإدارة العامة لتنمية المدينة","الإدارة العامة للبنية التحتية","الإدارة العامة للاستدامة البيئية","الإدارة العامة للرقابة"];
 
 document.getElementById("currentDate").innerHTML=new Date().toLocaleDateString("ar-SA",{weekday:"long",year:"numeric",month:"long",day:"numeric"});
 
@@ -345,6 +388,7 @@ function setupTabsByRole(){
     let r=currentUser.role;
     document.getElementById("tabAdd").style.display=(r==="admin"||r==="registration")?"inline-block":"none";
     document.getElementById("tabForward").style.display=(r==="admin")?"inline-block":"none";
+    document.getElementById("tabKPI").style.display=(r==="admin")?"inline-block":"none";
     document.getElementById("tabReports").style.display=(r==="admin")?"inline-block":"none";
     document.getElementById("tabUsers").style.display=(r==="admin")?"inline-block":"none";
 
@@ -359,12 +403,13 @@ function showPage(page){
     document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
     document.getElementById("page-"+page).classList.add("active");
     let tabs=document.querySelectorAll(".tab");
-    let pages=["dashboard","appointments","add","forward","reports","users"];
+    let pages=["dashboard","appointments","add","forward","kpi","reports","users"];
     let idx=pages.indexOf(page);
     if(idx>=0) tabs[idx].classList.add("active");
     if(page==="dashboard") loadDashboard();
     if(page==="appointments") loadAppointments();
     if(page==="forward") loadForward();
+    if(page==="kpi") buildKPI();
     if(page==="reports") buildReport();
     if(page==="users") loadUsers();
 }
@@ -407,7 +452,14 @@ function renderAppointments(){
     let dept=document.getElementById("filterDept").value;
 
     let filtered=allAppointments.filter(a=>{
-        if(search&&!a.name.toLowerCase().includes(search)&&!a.subject.toLowerCase().includes(search)&&!(a.id&&a.id.toLowerCase().includes(search))) return false;
+        if(search){
+            let match=a.name.toLowerCase().includes(search)||
+                     (a.subject||"").toLowerCase().includes(search)||
+                     (a.id||"").toLowerCase().includes(search)||
+                     (a.phone||"").includes(search)||
+                     (a.idNum||"").includes(search);
+            if(!match) return false;
+        }
         if(status&&a.status!==status) return false;
         if(dept&&a.dept!==dept) return false;
         return true;
@@ -416,7 +468,7 @@ function renderAppointments(){
     let html="";
     filtered.forEach(a=>{
         let actions='<button class="btn btn-primary btn-sm" onclick="showDetails(\''+a.id+'\')">تفاصيل</button> ';
-        if(currentUser.role==="admin"){
+        if(currentUser.role==="admin"&&a.status!=="منجز"){
             actions+='<button class="btn btn-warning btn-sm" onclick="openForward(\''+a.id+'\')">إحالة</button> ';
         }
         actions+='<button class="btn btn-success btn-sm" onclick="openNote(\''+a.id+'\')">ملاحظة</button>';
@@ -440,6 +492,18 @@ async function loadForward(){
     }
 }
 
+function previewAttachments(){
+    let input=document.getElementById("addAttachments");
+    let preview=document.getElementById("attachmentPreview");
+    preview.innerHTML="";
+    pendingUploads=[];
+    for(let f of input.files){
+        pendingUploads.push(f);
+        preview.innerHTML+='<div class="attachment-item"><span>'+f.name+' ('+(f.size/1024).toFixed(1)+'KB)</span></div>';
+    }
+    if(input.files.length>0) preview.innerHTML+='<p style="color:var(--rm-green);font-size:12px">تم اختيار '+input.files.length+' ملف</p>';
+}
+
 function handleAddAppointment(){
     let name=document.getElementById("addName").value.trim();
     let phone=document.getElementById("addPhone").value.trim();
@@ -459,7 +523,7 @@ function handleAddAppointment(){
     addAppointment({
         name:name,
         phone:phone,
-        idNum:idNum,
+        idNum:idNum||"",
         subject:subject,
         date:date,
         time:time,
@@ -469,10 +533,26 @@ function handleAddAppointment(){
         createdBy:currentUser.name,
         createdByRole:currentUser.role,
         createdByDept:currentUser.dept||""
-    }).then(()=>{
-        alert("تم إضافة الموعد بنجاح");
+    }).then(async(docRef)=>{
+        if(pendingUploads.length>0){
+            for(let file of pendingUploads){
+                try{
+                    await uploadAttachment(file,docRef.id);
+                }catch(e){
+                    console.error("فشل رفع المرفق:",e);
+                }
+            }
+        }
+        alert("تم إضافة الموعد بنجاح: "+docRef.id);
         resetAddForm();
-        showPage("appointments");
+        pendingUploads=[];
+
+        if(currentUser.role==="admin"){
+            showPage("forward");
+            setTimeout(()=>{openForward(docRef.id);},300);
+        }else{
+            showPage("appointments");
+        }
     }).catch(err=>{
         alert("حدث خطأ: "+err.message);
     });
@@ -484,19 +564,19 @@ function resetAddForm(){
     });
     document.getElementById("addDept").value="";
     document.getElementById("addPriority").value="عادي";
+    document.getElementById("addAttachments").value="";
+    document.getElementById("attachmentPreview").innerHTML="";
+    pendingUploads=[];
 }
 
 function openForward(id){
-    let apt=allAppointments.find(a=>a.id===id);
-    if(!apt){
-        getAppointmentById(id).then(a=>{apt=a;showForwardModal(apt);});
-        return;
-    }
-    showForwardModal(apt);
+    getAppointmentById(id).then(apt=>{
+        if(!apt){alert("الموعد غير موجود");return;}
+        showForwardModal(apt);
+    });
 }
 
 function showForwardModal(apt){
-    let depts=["قطاع الغرب","إدارة رخص البناء","إدارة شؤون الأراضي","إدارة الرخص التجارية والاستثمارية"];
     let html=`
     <div style="margin-bottom:15px">
     <strong>رقم الموعد:</strong> ${apt.id}<br>
@@ -506,7 +586,7 @@ function showForwardModal(apt){
     </div>
     <div class="form-group">
     <label>تحويل إلى إدارة</label>
-    <select id="forwardTo">${depts.map(d=>'<option value="'+d+'" '+(d===apt.dept?'selected':'')+'>'+d+'</option>').join('')}</select>
+    <select id="forwardTo">${DEPTS.map(d=>'<option value="'+d+'" '+(d===apt.dept?'selected':'')+'>'+d+'</option>').join('')}</select>
     </div>
     <div class="form-group">
     <label>ملاحظات الإحالة</label>
@@ -537,6 +617,7 @@ function handleForward(id){
         closeModal("forwardModal");
         alert("تم إحالة الموعد بنجاح");
         loadAppointments();
+        loadForward();
         loadDashboard();
     }).catch(err=>{
         alert("حدث خطأ: "+err.message);
@@ -585,7 +666,7 @@ function showDetails(id){
         <h3 style="margin-top:20px">المرفقات</h3>
         ${attachHtml}
         <div class="form-group" style="margin-top:10px">
-        <label>إرفاق ملف</label>
+        <label>إضافة مرفق</label>
         <input type="file" id="attachFile_${apt.id}" onchange="handleUploadAttachment('${apt.id}')">
         </div>
         <h3 style="margin-top:20px">السجل</h3>
@@ -599,11 +680,17 @@ function showDetails(id){
 function handleUploadAttachment(aptId){
     let input=document.getElementById("attachFile_"+aptId);
     if(!input.files.length) return;
-    let file=input.files[0];
-    uploadAttachment(file,aptId).then(()=>{
-        alert("تم رفع المرفق بنجاح");
+    showLoading();
+    let uploads=[];
+    for(let file of input.files){
+        uploads.push(uploadAttachment(file,aptId));
+    }
+    Promise.all(uploads).then(()=>{
+        hideLoading();
+        alert("تم رفع المرفقات بنجاح");
         showDetails(aptId);
     }).catch(err=>{
+        hideLoading();
         alert("حدث خطأ في رفع الملف: "+err.message);
     });
 }
@@ -706,6 +793,74 @@ async function buildReport(){
             html+='<tr><td>'+a.id+'</td><td>'+a.name+'</td><td>'+a.subject+'</td><td>'+a.date+'</td><td>'+getStatusBadge(a.status)+'</td><td>'+a.dept+'</td></tr>';
         });
         document.getElementById("reportTable").innerHTML=html||'<tr><td colspan="6" style="text-align:center;color:#aaa">لا توجد بيانات</td></tr>';
+    }catch(e){
+        console.error(e);
+    }
+}
+
+async function buildKPI(){
+    let from=document.getElementById("kpiFrom").value;
+    let to=document.getElementById("kpiTo").value;
+
+    try{
+        let apts=await getAppointments();
+        if(from) apts=apts.filter(a=>a.date>=from);
+        if(to) apts=apts.filter(a=>a.date<=to);
+
+        let total=apts.length;
+        let done=apts.filter(x=>x.status==="منجز").length;
+        let pending=apts.filter(x=>x.status==="قيد الانتظار").length;
+        let active=apts.filter(x=>x.status==="قيد التنفيذ").length;
+        let returned=apts.filter(x=>x.status==="مرتجع").length;
+        let rate=total>0?((done/total)*100).toFixed(1):0;
+        let avgTime=apts.length>0?Math.round(apts.reduce((s,a)=>{
+            let days=0;
+            if(a.history&&a.history.length>0){
+                let created=a.history[0].date;
+                let d1=new Date(created);
+                let d2=new Date();
+                days=(d2-d1)/(1000*60*60*24);
+            }
+            return s+days;
+        },0)/apts.length):0;
+
+        document.getElementById("kpiCards").innerHTML=`
+        <div class="card card-total"><div class="icon">&#128202;</div><h3>إجمالي المواعيد</h3><div class="value">${total}</div></div>
+        <div class="card card-done"><div class="icon">&#9989;</div><h3>تم الإنجاز</h3><div class="value">${done}</div></div>
+        <div class="card card-total"><div class="icon">&#128200;</div><h3>نسبة الإنجاز</h3><div class="value">${rate}%</div></div>
+        <div class="card card-pending"><div class="icon">&#9203;</div><h3>قيد الانتظار</h3><div class="value">${pending}</div></div>
+        <div class="card card-active"><div class="icon">&#128222;</div><h3>قيد التنفيذ</h3><div class="value">${active}</div></div>
+        <div class="card card-returned"><div class="icon">&#128260;</div><h3>مرتجع</h3><div class="value">${returned}</div></div>
+        `;
+
+        let deptData={};
+        DEPTS.forEach(d=>deptData[d]=0);
+        apts.forEach(a=>{if(deptData[a.dept]!==undefined)deptData[a.dept]++;});
+
+        let deptHtml="";
+        let deptColors={0:"#006946",1:"#1a365d",2:"#f4a261",3:"#e76f51"};
+        let i=0;
+        for(let d of DEPTS){
+            let pct=total>0?((deptData[d]/total)*100).toFixed(1):0;
+            deptHtml+=`
+            <div style="background:var(--rm-white);padding:20px;border-radius:16px;box-shadow:var(--rm-shadow)">
+            <div style="font-size:14px;font-weight:700;color:var(--rm-text);margin-bottom:10px">${d}</div>
+            <div style="font-size:28px;font-weight:800;color:${deptColors[i%4]}">${deptData[d]}</div>
+            <div style="font-size:12px;color:#888;margin-top:5px">${pct}% من الإجمالي</div>
+            <div style="background:#eee;height:8px;border-radius:4px;margin-top:8px">
+            <div style="background:${deptColors[i%4]};height:8px;border-radius:4px;width:${pct}%"></div>
+            </div>
+            </div>`;
+            i++;
+        }
+        document.getElementById("kpiDeptChart").innerHTML=deptHtml;
+
+        let top10=apts.slice(0,10);
+        let html="";
+        top10.forEach(a=>{
+            html+='<tr><td>'+a.id+'</td><td>'+a.name+'</td><td>'+a.dept+'</td><td>'+getStatusBadge(a.status)+'</td><td>'+a.date+'</td></tr>';
+        });
+        document.getElementById("kpiTable").innerHTML=html||'<tr><td colspan="5" style="text-align:center;color:#aaa">لا توجد بيانات</td></tr>';
     }catch(e){
         console.error(e);
     }
