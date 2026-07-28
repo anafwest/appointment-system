@@ -32,21 +32,27 @@ align-items:center;
 }
 
 .top-bar .logo-area{
-display:flex;
-align-items:center;
-gap:15px;
+    display:flex;
+    align-items:center;
+    gap:12px;
+}
+
+.logo-img{
+    width:42px;
+    height:42px;
+    object-fit:contain;
 }
 
 .top-bar .logo-icon{
-width:45px;
-height:45px;
-background:var(--rm-deep-indigo);
-border-radius:50%;
-display:flex;
-align-items:center;
-justify-content:center;
-font-size:20px;
-color:white;
+    width:45px;
+    height:45px;
+    background:var(--rm-deep-indigo);
+    border-radius:50%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:20px;
+    color:white;
 }
 
 .top-bar .logo-text{
@@ -750,17 +756,25 @@ box-shadow:0 20px 60px rgba(0,0,0,.2);
 text-align:center;
 }
 
+.login-logo{
+    width:80px;
+    height:80px;
+    object-fit:contain;
+    margin:0 auto 20px;
+    display:block;
+}
+
 .login-card .logo-icon{
-width:80px;
-height:80px;
-background:var(--rm-deep-indigo);
-border-radius:50%;
-display:flex;
-align-items:center;
-justify-content:center;
-font-size:36px;
-color:white;
-margin:0 auto 20px;
+    width:80px;
+    height:80px;
+    background:var(--rm-deep-indigo);
+    border-radius:50%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:36px;
+    color:white;
+    margin:0 auto 20px;
 }
 
 .login-card h1{
@@ -931,6 +945,134 @@ margin-top:10px;
 }
 
 .note-input:focus{
-border-color:var(--rm-green);
-outline:none;
+    border-color:var(--rm-green);
+    outline:none;
+}
+
+/* Responsive */
+@media(max-width:768px){
+    .top-bar{
+        flex-direction:column;
+        gap:10px;
+        padding:10px 15px;
+        text-align:center;
+    }
+    .top-bar .logo-area{
+        justify-content:center;
+    }
+    .main-header{
+        flex-direction:column;
+        text-align:center;
+        gap:10px;
+        padding:15px;
+    }
+    .main-header h1{
+        font-size:18px;
+    }
+    .tabs{
+        padding:10px 15px;
+        justify-content:center;
+    }
+    .tab{
+        font-size:12px;
+        padding:8px 14px;
+    }
+    .page{
+        padding:15px;
+    }
+    .section{
+        padding:15px;
+        overflow-x:auto;
+    }
+    table{
+        font-size:12px;
+    }
+    table th,table td{
+        padding:8px 10px;
+        white-space:nowrap;
+    }
+    .dashboard{
+        grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
+        gap:10px;
+    }
+    .card{
+        padding:15px;
+    }
+    .card .value{
+        font-size:24px;
+    }
+    .form-grid{
+        grid-template-columns:1fr;
+    }
+    .filters > div{
+        min-width:100%;
+    }
+    .booking-hero h2{
+        font-size:22px;
+    }
+    .booking-card{
+        padding:20px;
+    }
+    .booking-steps{
+        gap:10px;
+    }
+    .step{
+        font-size:12px;
+    }
+    .dept-cards{
+        grid-template-columns:repeat(auto-fit,minmax(130px,1fr));
+    }
+    .login-card{
+        padding:25px;
+    }
+    .modal-content{
+        padding:20px;
+        width:95%;
+    }
+    .notification-badge{
+        font-size:11px;
+        padding:4px 10px;
+    }
+}
+
+@media(max-width:480px){
+    .top-bar .logo-text{
+        font-size:14px;
+    }
+    .main-header h1{
+        font-size:16px;
+    }
+    .dashboard{
+        grid-template-columns:repeat(2,1fr);
+    }
+    .card .value{
+        font-size:20px;
+    }
+    .tab{
+        font-size:11px;
+        padding:6px 10px;
+    }
+    table{
+        font-size:11px;
+    }
+    table th,table td{
+        padding:6px 8px;
+    }
+    .booking-hero{
+        padding:30px 20px;
+    }
+    .booking-hero h2{
+        font-size:18px;
+    }
+    .time-slots{
+        grid-template-columns:repeat(3,1fr);
+    }
+    .logo-img{
+        width:32px;
+        height:32px;
+    }
+    .login-logo{
+        width:60px;
+        height:60px;
+    }
 }
