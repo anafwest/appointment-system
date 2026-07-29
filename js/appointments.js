@@ -127,17 +127,28 @@ function getAppointmentsForUser(userRole,userDept){
 }
 
 function uploadAttachment(file,aptId){
-    let ref=storage.ref("attachments/"+aptId+"/"+file.name);
-    return ref.put(file).then(()=>{
-        return ref.getDownloadURL();
-    }).then(url=>{
-        return db.collection("appointments").doc(aptId).update({
-            attachments:firebase.firestore.FieldValue.arrayUnion({
-                name:file.name,
-                url:url,
-                uploadedAt:new Date().toISOString()
-            })
-        });
+    return new Promise((resolve,reject)=>{
+        let reader=new FileReader();
+        reader.onload=function(e){
+            let base64=e.target.result;
+            if(base64.length>900000){
+                reject(new Error("حجم الملف كبير جداً (الحد الأقصى ~700KB)"));
+                return;
+            }
+            db.collection("appointments").doc(aptId).update({
+                attachments:firebase.firestore.FieldValue.arrayUnion({
+                    name:file.name,
+                    data:base64,
+                    type:file.type,
+                    size:file.size,
+                    uploadedAt:new Date().toISOString()
+                })
+            }).then(resolve).catch(reject);
+        };
+        reader.onerror=function(){
+            reject(new Error("فشل قراءة الملف"));
+        };
+        reader.readAsDataURL(file);
     });
 }
 
