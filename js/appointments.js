@@ -126,29 +126,108 @@ function getAppointmentsForUser(userRole,userDept){
     }
 }
 
-function uploadAttachment(file,aptId){
+function compressImage(file,maxW,maxH){
     return new Promise((resolve,reject)=>{
-        let reader=new FileReader();
-        reader.onload=function(e){
-            let base64=e.target.result;
-            if(base64.length>900000){
-                reject(new Error("حجم الملف كبير جداً (الحد الأقصى ~700KB)"));
-                return;
+        let img=new Image();
+        let url=URL.createObjectURL(file);
+        img.onload=function(){
+            let w=img.width,h=img.height;
+            if(w>maxW||h>maxH){
+                let ratio=Math.min(maxW/w,maxH/h);
+                w*=ratio;h*=ratio;
             }
-            db.collection("appointments").doc(aptId).update({
+            let c=document.createElement("canvas");
+            c.width=w;c.height=h;
+            let ctx=c.getContext("2d");
+            ctx.drawImage(img,0,0,w,h);
+            c.toBlob(function(blob){
+                URL.revokeObjectURL(url);
+                resolve(blob);
+            },"image/jpeg",0.8);
+        };
+        img.onerror=function(){reject(new Error("فشل قراءة الصورة"));};
+        img.src=url;
+    });
+}
+
+function uploadAttachment(file,aptId){
+    let uploadToFirestore=function(data,name,type,size){
+        return db.collection("appointments").doc(aptId).update({
+            attachments:firebase.firestore.FieldValue.arrayUnion({
+                name:name,
+                data:data,
+                type:type,
+                size:size,
+                uploadedAt:new Date().toISOString()
+            })
+        });
+    };
+
+    // Try Firebase Storage first
+    if(storage){
+        let ref=storage.ref("attachments/"+aptId+"/"+file.name);
+        return ref.put(file).then(()=>ref.getDownloadURL()).then(url=>{
+            return db.collection("appointments").doc(aptId).update({
                 attachments:firebase.firestore.FieldValue.arrayUnion({
                     name:file.name,
-                    data:base64,
+                    url:url,
                     type:file.type,
                     size:file.size,
                     uploadedAt:new Date().toISOString()
                 })
-            }).then(resolve).catch(reject);
-        };
-        reader.onerror=function(){
-            reject(new Error("فشل قراءة الملف"));
-        };
-        reader.readAsDataURL(file);
+            });
+        }).catch(()=>{
+            // Storage failed - fall back to base64
+            return fallbackUpload(file,aptId);
+        });
+    }else{
+        return fallbackUpload(file,aptId);
+    }
+}
+
+function fallbackUpload(file,aptId){
+    return new Promise((resolve,reject)=>{
+        if(file.type&&file.type.startsWith("image/")){
+            compressImage(file,1200,1200).then(compressed=>{
+                let reader=new FileReader();
+                reader.onload=function(e){
+                    let data=e.target.result;
+                    if(data.length>900000){
+                        reject(new Error("الصورة كبيرة جداً بعد الضغط - اختر صورة أقل دقة"));
+                        return;
+                    }
+                    db.collection("appointments").doc(aptId).update({
+                        attachments:firebase.firestore.FieldValue.arrayUnion({
+                            name:file.name,
+                            data:data,
+                            type:"image/jpeg",
+                            size:compressed.size,
+                            uploadedAt:new Date().toISOString()
+                        })
+                    }).then(resolve).catch(reject);
+                };
+                reader.readAsDataURL(compressed);
+            }).catch(reject);
+        }else{
+            let reader=new FileReader();
+            reader.onload=function(e){
+                let data=e.target.result;
+                if(data.length>800000){
+                    reject(new Error("حجم الملف كبير جداً (الحد الأعلى ~600KB). استخدم Firebase Storage برفع الخطة"));
+                    return;
+                }
+                db.collection("appointments").doc(aptId).update({
+                    attachments:firebase.firestore.FieldValue.arrayUnion({
+                        name:file.name,
+                        data:data,
+                        type:file.type,
+                        size:file.size,
+                        uploadedAt:new Date().toISOString()
+                    })
+                }).then(resolve).catch(reject);
+            };
+            reader.readAsDataURL(file);
+        }
     });
 }
 
