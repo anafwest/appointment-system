@@ -11,3 +11,11 @@ firebase.initializeApp(firebaseConfig);
 
 const auth = firebase.auth();
 const db = firebase.firestore();
+let storage=null;
+try{
+    if(firebase.storage){
+        storage=firebase.storage();
+    }
+}catch(e){
+    console.log("Firebase Storage غير متاح");
+}
