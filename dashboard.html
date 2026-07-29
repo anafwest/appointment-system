@@ -371,7 +371,8 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-<script src="js/config.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+    <script src="js/config.js"></script>
 <script src="js/auth.js"></script>
 <script src="js/appointments.js"></script>
 <script>
@@ -597,7 +598,7 @@ function handleAddAppointment(){
                 try{
                     await uploadAttachment(file,apptId);
                 }catch(e){
-                    alert("فشل رفع المرفق "+file.name+": "+e.message);
+                    console.error("فشل رفع المرفق:",e);
                 }
             }
         }
@@ -700,7 +701,10 @@ function showDetails(id){
         let attachHtml="";
         (apt.attachments||[]).forEach(a=>{
             let href=a.data||a.url||"#";
-            attachHtml+='<div class="attachment-item"><span>'+a.name+' ('+(a.size?(a.size/1024).toFixed(1)+'KB':'')+')</span><a href="'+href+'" target="_blank" download="'+a.name+'">تحميل</a></div>';
+            let isImg=a.type&&a.type.startsWith("image/");
+            let preview='';
+            if(isImg&&a.data) preview='<br><img src="'+a.data+'" style="max-width:200px;max-height:150px;border-radius:8px;margin-top:5px">';
+            attachHtml+='<div class="attachment-item"><span>'+a.name+' ('+(a.size?(a.size/1024).toFixed(1)+'KB':'')+')</span><a href="'+href+'" target="_blank" '+(a.data?'download="'+a.name+'"':'')+'>تحميل</a>'+preview+'</div>';
         });
         if(!apt.attachments||apt.attachments.length===0) attachHtml='<p style="color:#aaa;font-size:13px">لا توجد مرفقات</p>';
 
@@ -753,13 +757,13 @@ function handleUploadAttachment(aptId){
     for(let file of input.files){
         uploads.push(uploadAttachment(file,aptId));
     }
-    Promise.all(uploads).then(()=>{
+    Promise.allSettled(uploads).then(results=>{
         hideLoading();
-        alert("تم رفع المرفقات بنجاح");
+        let ok=results.filter(r=>r.status==="fulfilled").length;
+        let fail=results.filter(r=>r.status==="rejected").length;
+        if(ok>0) alert("تم رفع "+ok+" ملف بنجاح"+(fail>0?"، فشل "+fail+" ملف":""));
+        if(fail>0) results.filter(r=>r.status==="rejected").forEach(r=>console.error(r.reason));
         showDetails(aptId);
-    }).catch(err=>{
-        hideLoading();
-        alert("حدث خطأ في رفع الملف: "+err.message);
     });
 }
 
