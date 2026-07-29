@@ -371,7 +371,6 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
 <script src="js/config.js"></script>
 <script src="js/auth.js"></script>
 <script src="js/appointments.js"></script>
@@ -537,11 +536,15 @@ function previewAttachments(){
     let preview=document.getElementById("attachmentPreview");
     preview.innerHTML="";
     pendingUploads=[];
+    let totalSize=0;
     for(let f of input.files){
+        totalSize+=f.size;
         pendingUploads.push(f);
         preview.innerHTML+='<div class="attachment-item"><span>'+f.name+' ('+(f.size/1024).toFixed(1)+'KB)</span></div>';
     }
-    if(input.files.length>0) preview.innerHTML+='<p style="color:var(--rm-green);font-size:12px">تم اختيار '+input.files.length+' ملف</p>';
+    let warn='';
+    if(totalSize>700000) warn='<p style="color:red;font-size:12px">الملفات كبيرة جداً! قد تفشل بعضها</p>';
+    if(input.files.length>0) preview.innerHTML+='<p style="color:var(--rm-green);font-size:12px">تم اختيار '+input.files.length+' ملف</p>'+warn;
 }
 
 function handleAddAppointment(){
@@ -696,7 +699,8 @@ function showDetails(id){
 
         let attachHtml="";
         (apt.attachments||[]).forEach(a=>{
-            attachHtml+='<div class="attachment-item"><span>'+a.name+'</span><a href="'+a.url+'" target="_blank">تحميل</a></div>';
+            let href=a.data||a.url||"#";
+            attachHtml+='<div class="attachment-item"><span>'+a.name+' ('+(a.size?(a.size/1024).toFixed(1)+'KB':'')+')</span><a href="'+href+'" target="_blank" download="'+a.name+'">تحميل</a></div>';
         });
         if(!apt.attachments||apt.attachments.length===0) attachHtml='<p style="color:#aaa;font-size:13px">لا توجد مرفقات</p>';
 
