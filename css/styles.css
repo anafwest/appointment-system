@@ -291,9 +291,18 @@ color:white;
 background:var(--rm-light-green);
 }
 
+.btn-info{
+    background:#3498db;
+    color:white;
+}
+
+.btn-info:hover{
+    background:#2980b9;
+}
+
 .btn-warning{
-background:#f4a261;
-color:white;
+    background:#f4a261;
+    color:white;
 }
 
 .btn-warning:hover{
