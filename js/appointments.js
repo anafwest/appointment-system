@@ -82,11 +82,12 @@ function getAppointments(filters={}){
         query=query.where("date","<=",filters.dateTo);
     }
 
-    return query.orderBy("createdAt","desc").get().then(snap=>{
+    return query.get().then(snap=>{
         let apts=[];
         snap.forEach(doc=>{
             apts.push({id:doc.id,...doc.data()});
         });
+        apts.sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
         return apts;
     });
 }
@@ -104,23 +105,25 @@ function getAppointmentsForUser(userRole,userDept){
     }else if(userRole==="registration"){
         return db.collection("appointments")
             .where("createdByDept","==",userDept)
-            .orderBy("createdAt","desc").get()
+            .get()
             .then(snap=>{
                 let apts=[];
                 snap.forEach(doc=>{
                     apts.push({id:doc.id,...doc.data()});
                 });
+                apts.sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
                 return apts;
             });
     }else{
         return db.collection("appointments")
             .where("dept","==",userDept)
-            .orderBy("createdAt","desc").get()
+            .get()
             .then(snap=>{
                 let apts=[];
                 snap.forEach(doc=>{
                     apts.push({id:doc.id,...doc.data()});
                 });
+                apts.sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
                 return apts;
             });
     }
@@ -253,11 +256,11 @@ function getAppointmentStats(dept){
 function getCompletedCountForUser(userName){
     return db.collection("appointments")
         .where("status","==","منجز")
-        .where("createdBy","==",userName)
         .get().then(snap=>{
             let count=0;
             snap.forEach(doc=>{
-                if(!doc.data().deleted) count++;
+                let d=doc.data();
+                if(!d.deleted&&d.createdBy===userName) count++;
             });
             return count;
         });
