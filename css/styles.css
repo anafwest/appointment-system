@@ -5,6 +5,33 @@ box-sizing:border-box;
 font-family:'Tajawal',Tahoma,sans-serif;
 }
 
+.toast{
+position:fixed;
+top:80px;
+right:50%;
+transform:translateX(50%) translateY(-20px);
+background:#006946;
+color:white;
+padding:14px 28px;
+border-radius:10px;
+box-shadow:0 8px 24px rgba(0,0,0,.25);
+z-index:9999;
+opacity:0;
+pointer-events:none;
+transition:all .35s ease;
+font-weight:700;
+font-size:15px;
+}
+
+.toast.show{
+opacity:1;
+transform:translateX(50%) translateY(0);
+}
+
+.toast.error{
+background:#d62828;
+}
+
 :root{
 --rm-dark-grey:#2b2d42;
 --rm-indigo:#1a365d;
