@@ -676,8 +676,9 @@ function handleAddAppointment(){
         alert("تم إضافة الموعد بنجاح: "+apptId);
         resetAddForm();
         pendingUploads=[];
-        showPage("appointments");
-        loadAppointments();
+        showPage("dashboard");
+        loadDashboard();
+        loadNotifications();
     }).catch(err=>{
         if(err.message!=="duplicate") alert("حدث خطأ: "+err.message);
     });
