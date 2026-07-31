@@ -198,7 +198,7 @@
 </div>
 </div>
 <div style="margin-top:15px">
-<button class="btn btn-primary" onclick="handleAddAppointment()">حفظ وإحالة الموعد</button>
+<button class="btn btn-primary" onclick="handleAddAppointment()">حفظ الموعد</button>
 <button class="btn btn-warning" onclick="resetAddForm()" style="margin-right:10px">مسح النموذج</button>
 </div>
 </div>
@@ -376,6 +376,14 @@
 </div>
 </div>
 
+<div class="modal" id="respondModal">
+<div class="modal-content">
+<button class="modal-close" onclick="closeModal('respondModal')">&times;</button>
+<h2>الرد على الموعد</h2>
+<div id="respondModalBody"></div>
+</div>
+</div>
+
 <div class="modal" id="editModal">
                     <div class="modal-content">
                         <button class="modal-close" onclick="closeModal('editModal')">&times;</button>
@@ -433,7 +441,7 @@ function setupTabsByRole(){
     document.getElementById("tabUsers").style.display=(r==="admin")?"inline-block":"none";
 
     if(r==="department"){
-        document.getElementById("filterDept").value=currentUser.dept;
+        document.getElementById("filterDept").value="";
         document.getElementById("filterDept").disabled=true;
         document.querySelectorAll(".tab").forEach(t=>t.style.display="none");
         document.querySelector(".tab:nth-child(2)").style.display="inline-block";
@@ -443,13 +451,16 @@ function setupTabsByRole(){
 function loadNotifications(){
     if(currentUser.role!=="registration") return;
     let name=currentUser.name;
+    let dept=currentUser.dept;
     let check=()=>{
-        getCompletedCountForUser(name).then(count=>{
+        Promise.all([getCompletedCountForUser(name),getReturnedCountForUser(name,dept)]).then(results=>{
+            let count=results[0]+results[1];
             let badge=document.getElementById("notifBadge");
             let span=document.getElementById("notifCount");
             if(count>0){
                 badge.style.display="flex";
                 span.textContent=count;
+                badge.title=(results[1]>0?"مواعيد عادت إليك تنتظر إحالة: "+results[1]+" | ":"")+"مواعيد منجزة: "+results[0];
             }else{
                 badge.style.display="none";
             }
@@ -549,17 +560,26 @@ function renderAppointments(){
 
     let html="";
     filtered.forEach(a=>{
-        let canManage=(currentUser.role==="admin"||currentUser.role==="department");
+        let r=currentUser.role;
+        let withCreator=(a.dept===a.createdByDept);
+        let isMine=(r==="department"&&a.dept===currentUser.dept);
+        let notDone=(a.status!=="منجز");
         let actions='<button class="btn btn-primary btn-sm" onclick="showDetails(\''+a.id+'\')">تفاصيل</button> ';
-        if(canManage){
+        if(r==="admin"){
             actions+='<button class="btn btn-info btn-sm" onclick="openEdit(\''+a.id+'\')">تعديل</button> ';
-        }
-        if(currentUser.role==="admin"){
             actions+='<button class="btn btn-danger btn-sm" onclick="handleDeleteAppointment(\''+a.id+'\',\''+a.name+'\')">حذف</button> ';
-        }
-        if(canManage&&a.status!=="منجز"){
-            actions+='<button class="btn btn-warning btn-sm" onclick="openForward(\''+a.id+'\')">إحالة</button> ';
-            actions+='<button class="btn btn-success btn-sm" onclick="handleMarkDone(\''+a.id+'\')">منجز</button> ';
+            if(notDone){
+                actions+='<button class="btn btn-warning btn-sm" onclick="openForward(\''+a.id+'\')">إحالة</button> ';
+                actions+='<button class="btn btn-success btn-sm" onclick="handleMarkDone(\''+a.id+'\')">منجز</button> ';
+            }
+        }else if(r==="registration"){
+            if(withCreator&&notDone){
+                actions+='<button class="btn btn-warning btn-sm" onclick="openForward(\''+a.id+'\')">إحالة</button> ';
+            }
+        }else if(r==="department"){
+            if(isMine&&notDone){
+                actions+='<button class="btn btn-info btn-sm" onclick="openRespond(\''+a.id+'\')">رد</button> ';
+            }
         }
         actions+='<button class="btn btn-secondary btn-sm" onclick="openNote(\''+a.id+'\')">ملاحظة</button>';
         html+='<tr><td>'+a.id+'</td><td>'+a.name+'</td><td>'+a.phone+'</td><td>'+a.subject+'</td><td>'+a.date+'</td><td>'+a.time+'</td><td>'+getStatusBadge(a.status)+'</td><td>'+a.dept+'</td><td>'+actions+'</td></tr>';
@@ -628,6 +648,7 @@ function handleAddAppointment(){
             date:date,
             time:time,
             dept:dept,
+            deptPath:[dept],
             priority:priority,
             notes:notes,
             status:"جديد",
@@ -702,8 +723,6 @@ function showForwardModal(apt){
     <option value="جديد">جديد</option>
     <option value="قيد الانتظار">قيد الانتظار</option>
     <option value="قيد التنفيذ">قيد التنفيذ</option>
-    <option value="منجز">منجز</option>
-    <option value="مرتجع">مرتجع</option>
     </select>
     </div>
     <button class="btn btn-primary" onclick="handleForward('${apt.id}')">تنفيذ الإحالة</button>
@@ -733,6 +752,53 @@ function handleMarkDone(id){
         alert("تم التحديد كمنجز");
         loadAppointments();
         loadForward();
+        loadDashboard();
+        loadNotifications();
+    }).catch(err=>{
+        alert("حدث خطأ: "+err.message);
+    });
+}
+
+function openRespond(id){
+    getAppointmentById(id).then(apt=>{
+        if(!apt){alert("الموعد غير موجود");return;}
+        let html=`
+        <div style="margin-bottom:15px">
+        <strong>رقم الموعد:</strong> ${apt.id}<br>
+        <strong>المستفيد:</strong> ${apt.name}<br>
+        <strong>الموضوع:</strong> ${apt.subject}<br>
+        <strong>منشئ الموعد:</strong> ${apt.createdBy||'-'} (${apt.createdByDept||'-'})
+        </div>
+        <div class="form-group">
+        <label>نوع الرد</label>
+        <select id="respondStatus">
+        <option value="منجز">منجز</option>
+        <option value="مرفوض">مرفوض</option>
+        <option value="مرتجع">مرتجع</option>
+        </select>
+        </div>
+        <div class="form-group">
+        <label>سبب الرد (إلزامي)</label>
+        <textarea id="respondNotes" placeholder="مثال: تم الإنجاز بناءً على استكمال المستندات..." required></textarea>
+        </div>
+        <button class="btn btn-primary" onclick="handleRespond('${apt.id}')">إرسال الرد</button>
+        `;
+        document.getElementById("respondModalBody").innerHTML=html;
+        document.getElementById("respondModal").classList.add("active");
+    });
+}
+
+function handleRespond(id){
+    let status=document.getElementById("respondStatus").value;
+    let reason=document.getElementById("respondNotes").value.trim();
+    if(!reason){
+        alert("يجب كتابة سبب واضح للرد قبل الإرسال");
+        return;
+    }
+    respondAppointment(id,status,reason,currentUser.name).then(()=>{
+        closeModal("respondModal");
+        alert("تم إرسال الرد، وسيعود الموعد إلى منشئه");
+        loadAppointments();
         loadDashboard();
         loadNotifications();
     }).catch(err=>{
@@ -889,6 +955,11 @@ function showDetails(id){
         });
         if(!apt.attachments||apt.attachments.length===0) attachHtml='<p style="color:#aaa;font-size:13px">لا توجد مرفقات</p>';
 
+        let attachUploadHtml='';
+        if(currentUser.role!=="registration"){
+            attachUploadHtml='<div class="form-group" style="margin-top:10px"><label>إضافة مرفق</label><input type="file" id="attachFile_'+apt.id+'" onchange="handleUploadAttachment(\''+apt.id+'\')"></div>';
+        }
+
         let doneInfo='';
         if(apt.status==="منجز"){
             doneInfo=`
@@ -918,10 +989,7 @@ function showDetails(id){
         </div>
         <h3 style="margin-top:20px">المرفقات</h3>
         ${attachHtml}
-        <div class="form-group" style="margin-top:10px">
-        <label>إضافة مرفق</label>
-        <input type="file" id="attachFile_${apt.id}" onchange="handleUploadAttachment('${apt.id}')">
-        </div>
+        ${attachUploadHtml}
         <h3 style="margin-top:20px">السجل</h3>
         ${historyHtml}
         `;
