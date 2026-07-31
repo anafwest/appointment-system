@@ -34,6 +34,7 @@ function forwardAppointment(id,newDept,newStatus,notes,by){
             dept:newDept,
             status:newStatus,
             forwardDate:new Date().toISOString(),
+            deptPath:firebase.firestore.FieldValue.arrayUnion(newDept),
             history:firebase.firestore.FieldValue.arrayUnion({
                 action:"إحالة من "+oldDept+" إلى "+newDept+(notes?" - "+notes:""),
                 date:new Date().toISOString(),
@@ -116,7 +117,7 @@ function getAppointmentsForUser(userRole,userDept){
             });
     }else{
         return db.collection("appointments")
-            .where("dept","==",userDept)
+            .where("deptPath","array-contains",userDept)
             .get()
             .then(snap=>{
                 let apts=[];
@@ -127,6 +128,19 @@ function getAppointmentsForUser(userRole,userDept){
                 return apts;
             });
     }
+}
+
+function getReturnedCountForUser(userName,userDept){
+    return db.collection("appointments")
+        .where("dept","==",userDept)
+        .get().then(snap=>{
+            let count=0;
+            snap.forEach(doc=>{
+                let d=doc.data();
+                if(d.returnedDate&&d.createdBy===userName&&!d.deleted&&d.status!=="منجز") count++;
+            });
+            return count;
+        });
 }
 
 function compressImage(file,maxW,maxH){
@@ -253,6 +267,25 @@ function getAppointmentStats(dept){
     });
 }
 
+function respondAppointment(id,responseStatus,reason,by){
+    let now=new Date().toISOString();
+    return db.collection("appointments").doc(id).get().then(doc=>{
+        let apt=doc.data();
+        return db.collection("appointments").doc(id).update({
+            status:responseStatus,
+            notes:(apt.notes?apt.notes+"\n":"")+"رد ("+responseStatus+") - "+reason,
+            dept:apt.createdByDept||"",
+            returnedDate:now,
+            respondedBy:by,
+            history:firebase.firestore.FieldValue.arrayUnion({
+                action:"رد من "+apt.dept+" - "+responseStatus+" - "+reason,
+                date:now,
+                by:by
+            })
+        });
+    });
+}
+
 function getCompletedCountForUser(userName){
     return db.collection("appointments")
         .where("status","==","منجز")
@@ -273,6 +306,7 @@ function getStatusBadge(status){
     if(status==="قيد التنفيذ") cls="status-active";
     if(status==="منجز") cls="status-done";
     if(status==="مرتجع") cls="status-returned";
+    if(status==="مرفوض") cls="status-returned";
     return '<span class="status-badge '+cls+'">'+status+'</span>';
 }
 
