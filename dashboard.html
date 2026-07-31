@@ -10,6 +10,8 @@
 </head>
 <body>
 
+<div id="toast" class="toast"></div>
+
 <div class="top-bar">
 <div class="logo-area">
                         <div>
@@ -414,6 +416,15 @@ let pendingUploads=[];
 
 const DEPTS=["الإدارة العامة لتنمية المدينة","الإدارة العامة للبنية التحتية","الإدارة العامة للاستدامة البيئية","الإدارة العامة للرقابة","مكتب مدير القطاع","مكتب نائب القطاع"];
 
+function showToast(msg,type){
+    let toast=document.getElementById("toast");
+    if(!toast) return;
+    toast.textContent=msg;
+    toast.className="toast show "+(type||"success");
+    clearTimeout(toast._t);
+    toast._t=setTimeout(()=>{toast.className="toast";},3500);
+}
+
 document.getElementById("currentDate").innerHTML=new Date().toLocaleDateString("ar-SA",{weekday:"long",year:"numeric",month:"long",day:"numeric"});
 
 requireAuth(user=>{
@@ -673,7 +684,7 @@ function handleAddAppointment(){
                 }
             }
         }
-        alert("تم إضافة الموعد بنجاح: "+apptId);
+        showToast("تم حفظ الموعد بنجاح");
         resetAddForm();
         pendingUploads=[];
         showPage("dashboard");
