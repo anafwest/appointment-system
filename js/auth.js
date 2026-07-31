@@ -92,33 +92,36 @@ function logoutUser(){
 
 async function createUser(name,email,password,role,dept){
     showLoading();
-    let adminUser=auth.currentUser;
-    let adminEmail=adminUser.email;
-
     try{
-        let cred=await auth.createUserWithEmailAndPassword(email,password);
-        await db.collection("users").doc(cred.user.uid).set({
+        let apiKey=firebaseConfig.apiKey;
+        let res=await fetch("https://identitytoolkit.googleapis.com/v1/accounts:signUp?key="+apiKey,{
+            method:"POST",
+            headers:{"Content-Type":"application/json"},
+            body:JSON.stringify({email:email,password:password,returnSecureToken:true})
+        });
+        let data=await res.json();
+        if(data.error){
+            if(data.error.message==="EMAIL_EXISTS"){
+                alert("البريد الإلكتروني مستخدم بالفعل");
+            }else{
+                alert("حدث خطأ: "+data.error.message);
+            }
+            hideLoading();
+            return false;
+        }
+        await db.collection("users").doc(data.localId).set({
             name:name,
             email:email,
             role:role,
             dept:dept||"",
             createdAt:firebase.firestore.FieldValue.serverTimestamp()
         });
-
-        await auth.signOut();
-        await auth.signInWithEmailAndPassword(adminEmail,window._adminPassword||"");
         hideLoading();
         alert("تم إنشاء الحساب بنجاح: "+name);
         return true;
     }catch(err){
         hideLoading();
-        if(err.code==="auth/email-already-in-use"){
-            alert("البريد الإلكتروني مستخدم بالفعل");
-        }else{
-            alert("حدث خطأ: "+err.message);
-        }
-        try{await auth.signOut();}catch(e){}
-        try{await auth.signInWithEmailAndPassword(adminEmail,window._adminPassword||"");}catch(e){}
+        alert("حدث خطأ: "+err.message);
         return false;
     }
 }
