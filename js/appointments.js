@@ -239,6 +239,7 @@ function getAppointmentStats(dept){
         let total=0,pending=0,active=0,done=0,returned=0;
         snap.forEach(doc=>{
             let d=doc.data();
+            if(d.deleted) return;
             total++;
             if(d.status==="قيد الانتظار") pending++;
             if(d.status==="قيد التنفيذ") active++;
@@ -253,7 +254,13 @@ function getCompletedCountForUser(userName){
     return db.collection("appointments")
         .where("status","==","منجز")
         .where("createdBy","==",userName)
-        .get().then(snap=>snap.size);
+        .get().then(snap=>{
+            let count=0;
+            snap.forEach(doc=>{
+                if(!doc.data().deleted) count++;
+            });
+            return count;
+        });
 }
 
 function getStatusBadge(status){
