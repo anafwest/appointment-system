@@ -318,6 +318,15 @@ color:white;
 background:#d62828;
 }
 
+.btn-secondary{
+background:#8d99ae;
+color:white;
+}
+
+.btn-secondary:hover{
+background:#6c757d;
+}
+
 .btn-sm{
 padding:6px 14px;
 font-size:12px;
