@@ -118,6 +118,21 @@
 <tbody id="appointmentsTable"></tbody>
 </table>
 </div>
+<div class="section" id="deletedSection" style="display:none">
+<h3 style="margin-bottom:15px">المواعيد المحذوفة (سلة الحذف)</h3>
+<table>
+<thead>
+<tr>
+<th>رقم الموعد</th>
+<th>المستفيد</th>
+<th>الموضوع</th>
+<th>تاريخ الحذف</th>
+<th>الإجراء</th>
+</tr>
+</thead>
+<tbody id="deletedTable"></tbody>
+</table>
+</div>
 </div>
 
 <div class="page" id="page-add">
@@ -281,6 +296,7 @@
 <th>التاريخ</th>
 <th>الحالة</th>
 <th>الإدارة</th>
+<th>ملاحظة</th>
 </tr>
 </thead>
 <tbody id="reportTable"></tbody>
@@ -474,7 +490,7 @@ async function loadDashboard(){
     `;
     try{
         let apts=await getAppointmentsForUser(currentUser.role,currentUser.dept);
-        let recent=apts.slice(0,5);
+        let recent=apts.filter(a=>!a.deleted).slice(0,5);
         let html="";
         recent.forEach(a=>{
             html+='<tr onclick="showDetails(\''+a.id+'\')" style="cursor:pointer"><td>'+a.id+'</td><td>'+a.name+'</td><td>'+a.subject+'</td><td>'+a.date+'</td><td>'+a.time+'</td><td>'+getStatusBadge(a.status)+'</td><td>'+a.dept+'</td></tr>';
@@ -489,9 +505,26 @@ async function loadAppointments(){
     try{
         allAppointments=await getAppointmentsForUser(currentUser.role,currentUser.dept);
         renderAppointments();
+        renderDeleted();
     }catch(e){
         console.error(e);
     }
+}
+
+function renderDeleted(){
+    let section=document.getElementById("deletedSection");
+    if(currentUser.role!=="admin"){
+        section.style.display="none";
+        return;
+    }
+    let deleted=allAppointments.filter(a=>a.deleted);
+    section.style.display=deleted.length>0?"block":"none";
+    let html="";
+    deleted.forEach(a=>{
+        let delDate=a.deletedAt?new Date(a.deletedAt).toLocaleDateString("ar-SA"):"-";
+        html+='<tr><td>'+a.id+'</td><td>'+a.name+'</td><td>'+a.subject+'</td><td>'+delDate+'</td><td><button class="btn btn-success btn-sm" onclick="restoreAppointment(\''+a.id+'\')">استرجاع</button></td></tr>';
+    });
+    document.getElementById("deletedTable").innerHTML=html;
 }
 
 function renderAppointments(){
@@ -500,6 +533,7 @@ function renderAppointments(){
     let dept=document.getElementById("filterDept").value;
 
     let filtered=allAppointments.filter(a=>{
+        if(a.deleted) return false;
         if(search){
             let match=a.name.toLowerCase().includes(search)||
                      (a.subject||"").toLowerCase().includes(search)||
@@ -533,7 +567,7 @@ function renderAppointments(){
 async function loadForward(){
     try{
         let apts=await getAppointments();
-        let pending=apts.filter(a=>a.status!=="منجز");
+        let pending=apts.filter(a=>a.status!=="منجز"&&!a.deleted);
         let html="";
         pending.forEach(a=>{
             html+='<tr><td>'+a.id+'</td><td>'+a.name+'</td><td>'+a.subject+'</td><td>'+a.date+'</td><td>'+a.dept+'</td><td><button class="btn btn-primary btn-sm" onclick="openForward(\''+a.id+'\')">إحالة</button> <button class="btn btn-success btn-sm" onclick="handleMarkDone(\''+a.id+'\')">منجز</button></td></tr>';
@@ -795,11 +829,38 @@ function handleEditAppointment(id){
 }
 
 function handleDeleteAppointment(id,name){
-    if(!confirm("هل أنت متأكد من حذف الموعد رقم "+id+"؟")) return;
-    db.collection("appointments").doc(id).delete().then(()=>{
-        alert("تم حذف الموعد بنجاح");
+    if(!confirm("هل أنت متأكد من حذف الموعد رقم "+id+"؟ سيبقى محفوظاً في قاعدة البيانات لمدة 90 يوم")) return;
+    updateAppointment(id,{
+        deleted:true,
+        deletedAt:new Date().toISOString(),
+        history:firebase.firestore.FieldValue.arrayUnion({
+            action:"تم حذف الموعد (سيبقى محفوظاً 90 يوم)",
+            date:new Date().toISOString(),
+            by:currentUser.name
+        })
+    }).then(()=>{
+        alert("تم حذف الموعد، وسيبقى محفوظاً في التقارير");
         loadAppointments();
         loadForward();
+        loadDashboard();
+    }).catch(err=>{
+        alert("حدث خطأ: "+err.message);
+    });
+}
+
+function restoreAppointment(id){
+    if(!confirm("هل تريد استرجاع الموعد رقم "+id+"؟")) return;
+    updateAppointment(id,{
+        deleted:false,
+        deletedAt:firebase.firestore.FieldValue.delete(),
+        history:firebase.firestore.FieldValue.arrayUnion({
+            action:"تم استرجاع الموعد",
+            date:new Date().toISOString(),
+            by:currentUser.name
+        })
+    }).then(()=>{
+        alert("تم استرجاع الموعد بنجاح");
+        loadAppointments();
         loadDashboard();
     }).catch(err=>{
         alert("حدث خطأ: "+err.message);
@@ -1000,9 +1061,10 @@ async function buildReport(){
 
         let html="";
         apts.forEach(a=>{
-            html+='<tr><td>'+a.id+'</td><td>'+a.name+'</td><td>'+a.subject+'</td><td>'+a.date+'</td><td>'+getStatusBadge(a.status)+'</td><td>'+a.dept+'</td></tr>';
+            let delBadge=a.deleted?'<span style="background:#fee;color:#c00;padding:3px 8px;border-radius:6px;font-size:11px">محذوف</span>':'';
+            html+='<tr'+(a.deleted?' style="opacity:0.6"':'')+'><td>'+a.id+'</td><td>'+a.name+'</td><td>'+a.subject+'</td><td>'+a.date+'</td><td>'+getStatusBadge(a.status)+'</td><td>'+a.dept+'</td><td>'+delBadge+'</td></tr>';
         });
-        document.getElementById("reportTable").innerHTML=html||'<tr><td colspan="6" style="text-align:center;color:#aaa">لا توجد بيانات</td></tr>';
+        document.getElementById("reportTable").innerHTML=html||'<tr><td colspan="7" style="text-align:center;color:#aaa">لا توجد بيانات</td></tr>';
     }catch(e){
         console.error(e);
     }
