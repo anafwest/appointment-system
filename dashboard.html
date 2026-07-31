@@ -1020,13 +1020,13 @@ function handleCreateUser(){
         return;
     }
 
-    let prevUser=auth.currentUser;
-    createUser(name,email,pass,role,dept).then(()=>{
-        auth.updateCurrentUser(prevUser);
-        document.getElementById("newUserName").value="";
-        document.getElementById("newUserEmail").value="";
-        document.getElementById("newUserPassword").value="";
-        loadUsers();
+    createUser(name,email,pass,role,dept).then((ok)=>{
+        if(ok){
+            document.getElementById("newUserName").value="";
+            document.getElementById("newUserEmail").value="";
+            document.getElementById("newUserPassword").value="";
+            loadUsers();
+        }
     });
 }
 
