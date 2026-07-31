@@ -549,15 +549,19 @@ function renderAppointments(){
 
     let html="";
     filtered.forEach(a=>{
+        let canManage=(currentUser.role==="admin"||currentUser.role==="department");
         let actions='<button class="btn btn-primary btn-sm" onclick="showDetails(\''+a.id+'\')">تفاصيل</button> ';
-        if(currentUser.role==="admin"){
+        if(canManage){
             actions+='<button class="btn btn-info btn-sm" onclick="openEdit(\''+a.id+'\')">تعديل</button> ';
+        }
+        if(currentUser.role==="admin"){
             actions+='<button class="btn btn-danger btn-sm" onclick="handleDeleteAppointment(\''+a.id+'\',\''+a.name+'\')">حذف</button> ';
         }
-        if(currentUser.role==="admin"&&a.status!=="منجز"){
+        if(canManage&&a.status!=="منجز"){
             actions+='<button class="btn btn-warning btn-sm" onclick="openForward(\''+a.id+'\')">إحالة</button> ';
+            actions+='<button class="btn btn-success btn-sm" onclick="handleMarkDone(\''+a.id+'\')">منجز</button> ';
         }
-        actions+='<button class="btn btn-success btn-sm" onclick="openNote(\''+a.id+'\')">ملاحظة</button>';
+        actions+='<button class="btn btn-secondary btn-sm" onclick="openNote(\''+a.id+'\')">ملاحظة</button>';
         html+='<tr><td>'+a.id+'</td><td>'+a.name+'</td><td>'+a.phone+'</td><td>'+a.subject+'</td><td>'+a.date+'</td><td>'+a.time+'</td><td>'+getStatusBadge(a.status)+'</td><td>'+a.dept+'</td><td>'+actions+'</td></tr>';
     });
 
