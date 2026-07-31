@@ -360,13 +360,21 @@
 </div>
 </div>
 
-<div class="modal" id="noteModal">
-<div class="modal-content">
-<button class="modal-close" onclick="closeModal('noteModal')">&times;</button>
-<h2>إضافة ملاحظة</h2>
-<div id="noteModalBody"></div>
-</div>
-</div>
+<div class="modal" id="editModal">
+                    <div class="modal-content">
+                        <button class="modal-close" onclick="closeModal('editModal')">&times;</button>
+                        <h2>تعديل الموعد</h2>
+                        <div id="editModalBody"></div>
+                    </div>
+                </div>
+
+                <div class="modal" id="noteModal">
+                    <div class="modal-content">
+                        <button class="modal-close" onclick="closeModal('noteModal')">&times;</button>
+                        <h2>إضافة ملاحظة</h2>
+                        <div id="noteModalBody"></div>
+                    </div>
+                </div>
 
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
@@ -508,6 +516,10 @@ function renderAppointments(){
     let html="";
     filtered.forEach(a=>{
         let actions='<button class="btn btn-primary btn-sm" onclick="showDetails(\''+a.id+'\')">تفاصيل</button> ';
+        if(currentUser.role==="admin"){
+            actions+='<button class="btn btn-info btn-sm" onclick="openEdit(\''+a.id+'\')">تعديل</button> ';
+            actions+='<button class="btn btn-danger btn-sm" onclick="handleDeleteAppointment(\''+a.id+'\',\''+a.name+'\')">حذف</button> ';
+        }
         if(currentUser.role==="admin"&&a.status!=="منجز"){
             actions+='<button class="btn btn-warning btn-sm" onclick="openForward(\''+a.id+'\')">إحالة</button> ';
         }
@@ -685,6 +697,110 @@ function handleMarkDone(id){
         loadForward();
         loadDashboard();
         loadNotifications();
+    }).catch(err=>{
+        alert("حدث خطأ: "+err.message);
+    });
+}
+
+function openEdit(id){
+    getAppointmentById(id).then(apt=>{
+        if(!apt){alert("الموعد غير موجود");return;}
+        let html=`
+        <div style="margin-bottom:15px"><strong>رقم الموعد:</strong> ${apt.id}</div>
+        <div class="form-grid">
+        <div class="form-group">
+        <label>اسم المستفيد</label>
+        <input type="text" id="editName" value="${apt.name}">
+        </div>
+        <div class="form-group">
+        <label>رقم الجوال</label>
+        <input type="text" id="editPhone" value="${apt.phone}" maxlength="10">
+        </div>
+        <div class="form-group">
+        <label>رقم الهوية</label>
+        <input type="text" id="editIdNum" value="${apt.idNum||''}">
+        </div>
+        <div class="form-group">
+        <label>الموضوع</label>
+        <input type="text" id="editSubject" value="${apt.subject}">
+        </div>
+        <div class="form-group">
+        <label>التاريخ</label>
+        <input type="date" id="editDate" value="${apt.date}">
+        </div>
+        <div class="form-group">
+        <label>الوقت</label>
+        <input type="time" id="editTime" value="${apt.time}">
+        </div>
+        <div class="form-group">
+        <label>الإدارة</label>
+        <select id="editDept">${DEPTS.map(d=>'<option value="'+d+'" '+(d===apt.dept?'selected':'')+'>'+d+'</option>').join('')}</select>
+        </div>
+        <div class="form-group">
+        <label>الحالة</label>
+        <select id="editStatus">
+        <option value="جديد" ${apt.status==="جديد"?'selected':''}>جديد</option>
+        <option value="قيد الانتظار" ${apt.status==="قيد الانتظار"?'selected':''}>قيد الانتظار</option>
+        <option value="قيد التنفيذ" ${apt.status==="قيد التنفيذ"?'selected':''}>قيد التنفيذ</option>
+        <option value="منجز" ${apt.status==="منجز"?'selected':''}>منجز</option>
+        <option value="مرتجع" ${apt.status==="مرتجع"?'selected':''}>مرتجع</option>
+        </select>
+        </div>
+        <div class="form-group">
+        <label>الأولوية</label>
+        <select id="editPriority">
+        <option value="عادي" ${apt.priority==="عادي"?'selected':''}>عادي</option>
+        <option value="مهم" ${apt.priority==="مهم"?'selected':''}>مهم</option>
+        <option value="عاجل" ${apt.priority==="عاجل"?'selected':''}>عاجل</option>
+        </select>
+        </div>
+        <div class="form-group" style="grid-column:1/-1">
+        <label>ملاحظات</label>
+        <textarea id="editNotes">${apt.notes||''}</textarea>
+        </div>
+        </div>
+        <button class="btn btn-primary" onclick="handleEditAppointment('${apt.id}')">حفظ التعديلات</button>
+        <button class="btn btn-danger" onclick="closeModal('editModal')" style="margin-right:10px">إلغاء</button>
+        `;
+        document.getElementById("editModalBody").innerHTML=html;
+        document.getElementById("editModal").classList.add("active");
+    });
+}
+
+function handleEditAppointment(id){
+    let data={
+        name:document.getElementById("editName").value.trim(),
+        phone:document.getElementById("editPhone").value.trim(),
+        idNum:document.getElementById("editIdNum").value.trim(),
+        subject:document.getElementById("editSubject").value.trim(),
+        date:document.getElementById("editDate").value,
+        time:document.getElementById("editTime").value,
+        dept:document.getElementById("editDept").value,
+        status:document.getElementById("editStatus").value,
+        priority:document.getElementById("editPriority").value,
+        notes:document.getElementById("editNotes").value.trim()
+    };
+    if(!data.name||!data.phone||!data.subject||!data.date||!data.time||!data.dept){
+        alert("يرجى ملء جميع الحقول المطلوبة");
+        return;
+    }
+    updateAppointment(id,data).then(()=>{
+        closeModal("editModal");
+        alert("تم تعديل الموعد بنجاح");
+        loadAppointments();
+        loadDashboard();
+    }).catch(err=>{
+        alert("حدث خطأ: "+err.message);
+    });
+}
+
+function handleDeleteAppointment(id,name){
+    if(!confirm("هل أنت متأكد من حذف الموعد رقم "+id+"؟")) return;
+    db.collection("appointments").doc(id).delete().then(()=>{
+        alert("تم حذف الموعد بنجاح");
+        loadAppointments();
+        loadForward();
+        loadDashboard();
     }).catch(err=>{
         alert("حدث خطأ: "+err.message);
     });
