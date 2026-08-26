@@ -253,17 +253,18 @@ function getAppointmentStats(dept){
     if(dept) query=query.where("dept","==",dept);
 
     return query.get().then(snap=>{
-        let total=0,pending=0,active=0,done=0,returned=0;
+        let total=0,newCount=0,pending=0,active=0,done=0,returned=0;
         snap.forEach(doc=>{
             let d=doc.data();
             if(d.deleted) return;
             total++;
+            if(d.status==="جديد") newCount++;
             if(d.status==="قيد الانتظار") pending++;
             if(d.status==="قيد التنفيذ") active++;
             if(d.status==="منجز") done++;
             if(d.status==="مرتجع") returned++;
         });
-        return {total,pending,active,done,returned};
+        return {total,newCount,pending,active,done,returned};
     });
 }
 

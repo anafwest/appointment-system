@@ -505,6 +505,7 @@ async function loadDashboard(){
     let stats=await getAppointmentStats(depts);
     document.getElementById("dashboardStats").innerHTML=`
     <div class="card card-total"><div class="icon">&#128197;</div><h3>إجمالي المواعيد</h3><div class="value">${stats.total}</div></div>
+    <div class="card card-new"><div class="icon">&#10024;</div><h3>جديد</h3><div class="value">${stats.newCount}</div></div>
     <div class="card card-pending"><div class="icon">&#9203;</div><h3>قيد الانتظار</h3><div class="value">${stats.pending}</div></div>
     <div class="card card-active"><div class="icon">&#128222;</div><h3>قيد التنفيذ</h3><div class="value">${stats.active}</div></div>
     <div class="card card-done"><div class="icon">&#9989;</div><h3>منجز</h3><div class="value">${stats.done}</div></div>
@@ -1129,6 +1130,7 @@ async function buildReport(){
 
         let total=apts.length;
         let done=apts.filter(x=>x.status==="منجز").length;
+        let newCount=apts.filter(x=>x.status==="جديد").length;
         let pending=apts.filter(x=>x.status==="قيد الانتظار").length;
         let active=apts.filter(x=>x.status==="قيد التنفيذ").length;
         let returned=apts.filter(x=>x.status==="مرتجع").length;
@@ -1136,6 +1138,7 @@ async function buildReport(){
 
         document.getElementById("reportKPI").innerHTML=`
         <div class="card card-total"><div class="icon">&#128197;</div><h3>إجمالي</h3><div class="value">${total}</div></div>
+        <div class="card card-new"><div class="icon">&#10024;</div><h3>جديد</h3><div class="value">${newCount}</div></div>
         <div class="card card-pending"><div class="icon">&#9203;</div><h3>قيد الانتظار</h3><div class="value">${pending}</div></div>
         <div class="card card-active"><div class="icon">&#128222;</div><h3>قيد التنفيذ</h3><div class="value">${active}</div></div>
         <div class="card card-done"><div class="icon">&#9989;</div><h3>منجز</h3><div class="value">${done}</div></div>
@@ -1165,6 +1168,7 @@ async function buildKPI(){
 
         let total=apts.length;
         let done=apts.filter(x=>x.status==="منجز").length;
+        let newCount=apts.filter(x=>x.status==="جديد").length;
         let pending=apts.filter(x=>x.status==="قيد الانتظار").length;
         let active=apts.filter(x=>x.status==="قيد التنفيذ").length;
         let returned=apts.filter(x=>x.status==="مرتجع").length;
@@ -1184,6 +1188,7 @@ async function buildKPI(){
         <div class="card card-total"><div class="icon">&#128202;</div><h3>إجمالي المواعيد</h3><div class="value">${total}</div></div>
         <div class="card card-done"><div class="icon">&#9989;</div><h3>تم الإنجاز</h3><div class="value">${done}</div></div>
         <div class="card card-total"><div class="icon">&#128200;</div><h3>نسبة الإنجاز</h3><div class="value">${rate}%</div></div>
+        <div class="card card-new"><div class="icon">&#10024;</div><h3>جديد</h3><div class="value">${newCount}</div></div>
         <div class="card card-pending"><div class="icon">&#9203;</div><h3>قيد الانتظار</h3><div class="value">${pending}</div></div>
         <div class="card card-active"><div class="icon">&#128222;</div><h3>قيد التنفيذ</h3><div class="value">${active}</div></div>
         <div class="card card-returned"><div class="icon">&#128260;</div><h3>مرتجع</h3><div class="value">${returned}</div></div>

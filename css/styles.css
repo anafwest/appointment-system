@@ -225,6 +225,7 @@ height:4px;
 }
 
 .card-total::before{background:var(--rm-green);}
+.card-new::before{background:#1565c0;}
 .card-pending::before{background:#f4a261;}
 .card-active::before{background:var(--rm-indigo);}
 .card-done::before{background:var(--rm-light-green);}
@@ -234,6 +235,7 @@ height:4px;
 .card h3{color:#888;margin-bottom:6px;font-size:13px;font-weight:500;}
 .card .value{font-size:34px;font-weight:800;}
 .card-total .value{color:var(--rm-green);}
+.card-new .value{color:#1565c0;}
 .card-pending .value{color:#f4a261;}
 .card-active .value{color:var(--rm-indigo);}
 .card-done .value{color:var(--rm-light-green);}
