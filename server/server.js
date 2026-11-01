@@ -11,6 +11,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const os = require('os');
 
 const ROOT = path.resolve(__dirname, '..');
 const PORT = Number(process.env.PORT || 8080);
@@ -31,6 +32,15 @@ function load() {
     console.error('تعذّر قراءة قاعدة البيانات، سيتم البدء بقاعدة جديدة:', e.message);
   }
   db.collections = db.collections || {};
+  db.sessions = db.sessions || {};
+  // استعادة الجلسات المحفوظة (حتى لا يخرج الموظفون عند إعادة تشغيل الخادم)
+  const WEEK = 7 * 24 * 60 * 60 * 1000;
+  const now = Date.now();
+  Object.keys(db.sessions).forEach(sid => {
+    const s = db.sessions[sid];
+    if (!s || !s.at || now - s.at > WEEK) { delete db.sessions[sid]; return; }
+    sessions.set(sid, s);
+  });
 }
 function saveNow() {
   fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -132,8 +142,18 @@ function matches(doc, filters) {
 const sessions = new Map();
 function newSession(user) {
   const sid = crypto.randomBytes(24).toString('hex');
-  sessions.set(sid, { uid: user.uid, anonymous: !!user.anonymous, at: Date.now() });
+  const entry = { uid: user.uid, anonymous: !!user.anonymous, at: Date.now() };
+  sessions.set(sid, entry);
+  db.sessions = db.sessions || {};
+  db.sessions[sid] = entry;
+  save();
   return sid;
+}
+function destroySession(sid) {
+  if (!sid) return;
+  sessions.delete(sid);
+  if (db.sessions) delete db.sessions[sid];
+  save();
 }
 function cookieSid(req) {
   const raw = req.headers.cookie || '';
@@ -402,8 +422,7 @@ async function handleApi(req, res, url) {
     }, { 'Set-Cookie': `sid=${sid}; Path=/; HttpOnly; SameSite=Lax` });
   }
   if (p === '/api/auth/logout' && req.method === 'POST') {
-    const sid = cookieSid(req);
-    if (sid) sessions.delete(sid);
+    destroySession(cookieSid(req));
     return send(res, 200, { ok: true }, { 'Set-Cookie': 'sid=; Path=/; HttpOnly; Max-Age=0' });
   }
   if (p === '/api/auth/anonymous' && req.method === 'POST') {
@@ -659,10 +678,29 @@ const server = http.createServer((req, res) => {
 
 startSyncScheduler();
 
+function lanAddresses() {
+  const out = [];
+  const nets = os.networkInterfaces();
+  Object.keys(nets).forEach(name => {
+    (nets[name] || []).forEach(net => {
+      if (net.family === 'IPv4' && !net.internal) out.push(net.address);
+    });
+  });
+  return out;
+}
+
 server.listen(PORT, HOST, () => {
-  console.log('نظام المواعيد يعمل في الوضع المحلي (شبكة داخلية)');
-  console.log('الرابط: http://' + (HOST === '0.0.0.0' ? 'localhost' : HOST) + ':' + PORT + '/');
-  console.log('البيانات: ' + DB_FILE);
+  const ips = lanAddresses();
+  console.log('==========================================================');
+  console.log(' نظام المواعيد — خادم الشبكة الداخلية');
+  console.log(' افتح من أي جهاز على الشبكة أحد الروابط التالية:');
+  console.log('   http://localhost:' + PORT + '/');
+  ips.forEach(ip => console.log('   http://' + ip + ':' + PORT + '/'));
+  if (!ips.length) console.log('   (لم يُعثر على عنوان شبكة — تأكد من اتصال الخادم بالشبكة)');
+  console.log(' الإدارات: يفتحون الرابط ← تسجيل الدخول بحسابهم ← تظهر مواعيد إدارتهم فقط');
+  console.log(' المدير العام / مدير النظام: يرى كل المواعيد وكل الإدارات');
+  console.log(' البيانات: ' + DB_FILE);
+  console.log('==========================================================');
 });
 
 process.on('SIGINT', () => { try { saveNow(); } catch (e) {} process.exit(0); });
