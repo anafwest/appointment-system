@@ -72,6 +72,12 @@
 <button class="btn btn-primary btn-sm" onclick="fixAttachments()">فحص المرفقات</button>
 </div>
 <div class="tool">
+<h4>المزامنة مع Firebase</h4>
+<p>تعرض آخر مزامنة تلقائية للمواعيد إلى السحابة (تعمل كل عدة دقائق)، ويمكنك تشغيلها الآن.</p>
+<div id="syncBox" style="font-size:13px;color:#444;line-height:2">جارٍ قراءة حالة المزامنة…</div>
+<button class="btn btn-primary btn-sm" onclick="syncNow()" style="margin-top:10px">مزامنة الآن</button>
+</div>
+<div class="tool">
 <h4>نسخ التقرير</h4>
 <p>انسخ نتيجة الفحص كاملة لمشاركتها مع الدعم الفني أو مطوّر النظام.</p>
 <button class="btn btn-secondary btn-sm" onclick="copyReport()">نسخ التقرير</button>
@@ -118,6 +124,8 @@ const ICONS={ok:"&#9989;",warn:"&#9888;&#65039;",error:"&#10060;",skip:"&#8226;"
 const LABELS={ok:"سليم",warn:"ملاحظة",error:"خطأ",skip:"تخطّي"};
 
 requireAuth(user=>{
+    loadSyncStatus();
+    setInterval(loadSyncStatus,15000);
     document.getElementById("userInfo").innerHTML=esc(user.name||"")+' <span class="role-badge">'+esc(user.role==="admin"?"مدير النظام":user.role)+'</span>';
     runAll();
 });
@@ -198,6 +206,47 @@ async function fixAttachments(){
         log("فشل: "+ex.title+" — "+ex.raw);
         showToast(ex.title,"error");
     }
+}
+
+/* ---------- حالة المزامنة مع Firebase ---------- */
+function loadSyncStatus(){
+    const box=document.getElementById("syncBox");
+    if(!box) return;
+    if(window.BACKEND_MODE!=="local"){
+        box.innerHTML="النظام يعمل الآن على Firebase مباشرة، فلا حاجة للمزامنة.";
+        return;
+    }
+    fetch("api/sync/status",{credentials:"same-origin"})
+    .then(r=>r.json())
+    .then(st=>{
+        if(!st||st.enabled===undefined){ box.innerHTML="تعذّر قراءة حالة المزامنة."; return; }
+        if(!st.enabled){
+            box.innerHTML="<b style='color:#a35c00'>المزامنة غير مفعّلة</b><br>ضع ملف <code>service-account.json</code> في مجلد <code>server</code> ثم أعد تشغيل الخادم.";
+            return;
+        }
+        const lr=st.lastResult||{};
+        box.innerHTML=
+            "<b style='color:#006946'>المزامنة مفعّلة</b> — كل "+st.intervalMinutes+" دقيقة"+
+            (st.pullEnabled?" (رفع وسحب)":" (رفع فقط)")+"<br>"+
+            "آخر تشغيل: "+(st.lastRunAt?new Date(st.lastRunAt).toLocaleString("ar-SA"):"لم يتم بعد")+"<br>"+
+            (st.running?"<span style='color:#a35c00'>جارٍ التنفيذ الآن…</span><br>":"")+
+            (st.lastResult?"رفع: "+lr.pushed+" · تُخطّي: "+lr.skipped+" · أخطاء: "+lr.errors+"<br>":"")+
+            (st.lastError?"<b style='color:#c1121f'>آخر خطأ: "+st.lastError+"</b>":"");
+    })
+    .catch(()=>{ box.innerHTML="تعذّر الوصول إلى حالة المزامنة."; });
+}
+function syncNow(){
+    const box=document.getElementById("syncBox");
+    if(box) box.innerHTML="جارٍ المزامنة مع Firebase…";
+    fetch("api/sync/now",{method:"POST",credentials:"same-origin"})
+    .then(r=>r.json().then(j=>({ok:r.ok,j:j})))
+    .then(res=>{
+        if(!res.ok) throw new Error((res.j&&res.j.error&&res.j.error.message)||"فشل التشغيل");
+        const lr=res.j.lastResult||{};
+        showToast("تمت المزامنة — رفع "+lr.pushed+" موعداً");
+        loadSyncStatus();
+    })
+    .catch(e=>{ showToast(e.message,"error"); loadSyncStatus(); });
 }
 
 function copyReport(){

@@ -160,6 +160,107 @@ function broadcast(changePath) {
   }
 }
 
+/* ---------------- المزامنة التلقائية مع Firebase ---------------- */
+const SYNC_INTERVAL_MINUTES = Math.max(1, Number(process.env.SYNC_INTERVAL_MINUTES || 5));
+const SYNC_DEBOUNCE_MS = Math.max(5000, Number(process.env.SYNC_DEBOUNCE_SECONDS || 20) * 1000);
+const SYNC_PULL = String(process.env.SYNC_PULL || 'false').toLowerCase() === 'true';
+
+const syncState = {
+  enabled: false,
+  running: false,
+  intervalMinutes: SYNC_INTERVAL_MINUTES,
+  pullEnabled: SYNC_PULL,
+  lastRunAt: null,
+  lastResult: null,
+  lastError: null,
+  runs: 0
+};
+let syncTimer = null;
+let syncDebounce = null;
+let syncModule = null;
+
+function syncLogLine(line) {
+  const msg = '[' + new Date().toISOString() + '] ' + line;
+  console.log('[sync] ' + line);
+  try {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    fs.appendFileSync(path.join(DATA_DIR, 'sync.log'), msg + '\n');
+  } catch (e) { /* لا نُفشل النظام بسبب السجل */ }
+}
+
+function loadSyncModule() {
+  if (syncModule) return syncModule;
+  try { syncModule = require('./firebase-sync'); } catch (e) { syncModule = null; }
+  return syncModule;
+}
+
+async function runSync(reason) {
+  if (!syncState.enabled || syncState.running) return syncState;
+  const mod = loadSyncModule();
+  if (!mod) { syncState.lastError = 'وحدة المزامنة غير متاحة'; return syncState; }
+
+  syncState.running = true;
+  const started = Date.now();
+  try {
+    const pushRes = await mod.push({ data: db });
+    let pullRes = null;
+    if (SYNC_PULL) {
+      pullRes = await mod.pull({ data: db });
+      broadcast('appointments');
+    }
+    save();
+    syncState.runs++;
+    syncState.lastRunAt = new Date().toISOString();
+    syncState.lastError = null;
+    syncState.lastResult = {
+      reason: reason || 'scheduled',
+      pushed: pushRes.pushed,
+      skipped: pushRes.skipped,
+      errors: pushRes.errors,
+      pulled: pullRes ? pullRes.added + pullRes.updated : 0,
+      durationMs: Date.now() - started
+    };
+    if (pushRes.pushed || (pullRes && (pullRes.added || pullRes.updated))) {
+      syncLogLine('تمت المزامنة: رفع ' + pushRes.pushed + ' · سحب ' + (pullRes ? pullRes.added + pullRes.updated : 0) +
+        ' · تُخطّي ' + pushRes.skipped + ' · أخطاء ' + pushRes.errors + ' (' + (reason || 'scheduled') + ')');
+    }
+    if (pushRes.errors) syncLogLine('تحذير: ' + pushRes.errors + ' مستند(ات) فشلت مزامنتها، سيُعاد المحاولة تلقائياً');
+  } catch (e) {
+    const raw = String(e && e.message || e);
+    syncState.lastError = /fetch failed|ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ETIMEDOUT|network/i.test(raw)
+      ? 'تعذّر الاتصال بخوادم Google — تحقق من الإنترنت أو من بروكسي الشبكة على جهاز الخادم'
+      : raw;
+    syncState.lastRunAt = new Date().toISOString();
+    syncLogLine('فشلت المزامنة: ' + syncState.lastError);
+  } finally {
+    syncState.running = false;
+  }
+  return syncState;
+}
+
+function scheduleSyncSoon(reason) {
+  if (!syncState.enabled) return;
+  if (syncDebounce) return;
+  syncDebounce = setTimeout(() => {
+    syncDebounce = null;
+    runSync(reason || 'after-change');
+  }, SYNC_DEBOUNCE_MS);
+}
+
+function startSyncScheduler() {
+  const mod = loadSyncModule();
+  if (!mod || !mod.hasServiceAccount()) {
+    syncState.enabled = false;
+    console.log('المزامنة مع Firebase: غير مفعّلة (ضع ملف service-account.json في مجلد server لتفعيلها)');
+    return;
+  }
+  syncState.enabled = true;
+  syncLogLine('المزامنة مفعّلة — كل ' + SYNC_INTERVAL_MINUTES + ' دقيقة' + (SYNC_PULL ? ' (مع سحب من السحابة)' : ' (رفع فقط)'));
+  setTimeout(() => runSync('startup'), 15000);
+  syncTimer = setInterval(() => runSync('scheduled'), SYNC_INTERVAL_MINUTES * 60 * 1000);
+  if (syncTimer.unref) syncTimer.unref();
+}
+
 /* ---------------- HTTP ---------------- */
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'application/javascript; charset=utf-8',
@@ -325,6 +426,7 @@ async function handleApi(req, res, url) {
     data.updatedAt = new Date().toISOString();
     docs[id] = data;
     save(); broadcast(collPath);
+    if (collPath === 'appointments') scheduleSyncSoon('new-appointment');
     return send(res, 200, { id, data });
   }
   if (p === '/api/doc' && req.method === 'PUT') {
@@ -341,6 +443,7 @@ async function handleApi(req, res, url) {
     data.updatedAt = new Date().toISOString();
     docs[body.id] = data;
     save(); broadcast(collPath);
+    if (collPath === 'appointments') scheduleSyncSoon('updated-appointment');
     return send(res, 200, { id: body.id, data });
   }
   if (p === '/api/doc' && req.method === 'PATCH') {
@@ -351,6 +454,7 @@ async function handleApi(req, res, url) {
     if (!doc) return fail(res, 404, 'not-found', 'المستند غير موجود');
     applyUpdate(doc, body.data || {});
     save(); broadcast(body.path);
+    if (body.path === 'appointments') scheduleSyncSoon('updated-appointment');
     return send(res, 200, { id: body.id, data: doc });
   }
   if (p === '/api/doc' && req.method === 'DELETE') {
@@ -360,6 +464,7 @@ async function handleApi(req, res, url) {
     if (!docs[body.id]) return fail(res, 404, 'not-found', 'المستند غير موجود');
     delete docs[body.id];
     save(); broadcast(body.path);
+    if (body.path === 'appointments') scheduleSyncSoon('deleted-appointment');
     return send(res, 200, { ok: true });
   }
   if (p === '/api/batch' && req.method === 'POST') {
@@ -374,7 +479,35 @@ async function handleApi(req, res, url) {
       touched.add(op.path);
     }
     save(); touched.forEach(broadcast);
+    if (touched.has('appointments')) scheduleSyncSoon('batch');
     return send(res, 200, { ok: true });
+  }
+
+  /* --- المزامنة مع Firebase --- */
+  if (p === '/api/sync/status') {
+    if (!isAdmin(user)) return fail(res, 403, 'permission-denied', 'حالة المزامنة لمدير النظام فقط');
+    return send(res, 200, {
+      enabled: syncState.enabled,
+      running: syncState.running,
+      intervalMinutes: syncState.intervalMinutes,
+      pullEnabled: syncState.pullEnabled,
+      lastRunAt: syncState.lastRunAt,
+      lastResult: syncState.lastResult,
+      lastError: syncState.lastError,
+      runs: syncState.runs,
+      serviceAccount: (loadSyncModule() || {}).serviceAccountPath ? loadSyncModule().serviceAccountPath() : null
+    });
+  }
+  if (p === '/api/sync/now' && req.method === 'POST') {
+    if (!isAdmin(user)) return fail(res, 403, 'permission-denied', 'المزامنة الفورية لمدير النظام فقط');
+    if (!syncState.enabled) return fail(res, 400, 'invalid-argument', 'المزامنة غير مفعّلة — ضع ملف service-account.json ثم أعد تشغيل الخادم');
+    await runSync('manual');
+    return send(res, 200, {
+      ok: !syncState.lastError,
+      lastRunAt: syncState.lastRunAt,
+      lastResult: syncState.lastResult,
+      lastError: syncState.lastError
+    });
   }
 
   /* --- المستخدمون (مدير النظام) --- */
@@ -450,6 +583,8 @@ const server = http.createServer((req, res) => {
   }
   serveStatic(req, res, url.pathname);
 });
+
+startSyncScheduler();
 
 server.listen(PORT, HOST, () => {
   console.log('نظام المواعيد يعمل في الوضع المحلي (شبكة داخلية)');
