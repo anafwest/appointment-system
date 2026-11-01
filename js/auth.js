@@ -103,6 +103,22 @@ function logoutUser(){
 
 async function createUser(name,email,password,role,dept){
     showLoading();
+    // الوضع المحلي: يُنشأ الحساب على الخادم الداخلي (ويُزامن مع Firebase تلقائياً إن أمكن)
+    if(window.BACKEND_MODE==="local"){
+        try{
+            await window.localApi("POST","/api/users",{name:name,email:email,password:password,role:role,dept:dept||""});
+            hideLoading();
+            alert("تم إنشاء الحساب بنجاح: "+name);
+            return true;
+        }catch(err){
+            hideLoading();
+            if(window.DIAG) DIAG.record(err,"إنشاء مستخدم");
+            let msg=(err&&err.message)||"";
+            if(err&&err.code==="auth/email-already-in-use"||/مستخدم بالفعل|EMAIL_EXISTS/.test(msg)) alert("البريد الإلكتروني مستخدم بالفعل");
+            else alert("تعذّر إنشاء الحساب: "+msg);
+            return false;
+        }
+    }
     try{
         let apiKey=firebaseConfig.apiKey;
         let res=await fetch("https://identitytoolkit.googleapis.com/v1/accounts:signUp?key="+apiKey,{

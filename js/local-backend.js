@@ -37,8 +37,19 @@
         });
     };
 
+    /* ============================================================
+       اختيار الوضع — عدّل هذا السطر إذا أردت تثبيت الوضع:
+         "auto"     : محلي إن وُجد الخادم الداخلي، وإلا Firebase  (الافتراضي)
+         "local"    : الشبكة الداخلية دائماً
+         "firebase" : Firebase دائماً (حتى لو كان الخادم الداخلي متاحاً)
+       ============================================================ */
+    if(!window.APP_MODE) window.APP_MODE="auto";
+    if(window.APP_MODE==="local"||window.APP_MODE==="firebase"){
+        try{ localStorage.setItem("appt_backend",window.APP_MODE); }catch(e){}
+    }
+
     const params=new URLSearchParams(location.search);
-    const forced=params.get("mode");
+    const forced=params.get("mode")||(window.APP_MODE!=="auto"?window.APP_MODE:null);
     if(forced==="local"||forced==="firebase"){
         try{ localStorage.setItem("appt_backend",forced); }catch(e){}
     }

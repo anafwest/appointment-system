@@ -133,7 +133,7 @@ function showPage(page){
     if(idx>=0&&tabs[idx]) tabs[idx].classList.add("active");
 
     if(page==="dashboard") renderDashboard();
-    if(page==="appointments"){ renderAppointments(); renderDeleted(); }
+    if(page==="appointments"){ loadAppointments(true); }
     if(page==="forward") renderForwardTable();
     if(page==="kpi") renderKPI();
     if(page==="reports") renderReport();
@@ -179,6 +179,7 @@ function loadAppointments(force){
         if(!lastSyncAt) lastSyncAt=Date.now();
         renderAppointments();
         renderDeleted();
+        renderDashboard();
     })
     .catch(err=>{
         let ex=DIAG.record(err,"تحميل المواعيد");
@@ -401,6 +402,7 @@ function handleForward(id){
         hideLoading();
         closeModal("forwardModal");
         showToast("تم إحالة الموعد بنجاح");
+        loadAppointments(true);
     }).catch(err=>{
         hideLoading();
         showToast(DIAG.record(err,"إحالة موعد").title,"error");
@@ -412,6 +414,7 @@ function handleMarkDone(id){
     markAppointmentDone(id,currentUser.name).then(()=>{
         hideLoading();
         showToast("تم التحديد كمنجز");
+        loadAppointments(true);
     }).catch(err=>{
         hideLoading();
         showToast(DIAG.record(err,"تحديد منجز").title,"error");
@@ -456,6 +459,7 @@ function handleRespond(id){
         hideLoading();
         closeModal("respondModal");
         showToast("تم إرسال الرد");
+        loadAppointments(true);
     }).catch(err=>{
         hideLoading();
         showToast(DIAG.record(err,"إرسال رد").title,"error");
@@ -518,6 +522,7 @@ function handleEditAppointment(id){
         hideLoading();
         closeModal("editModal");
         showToast("تم تعديل الموعد بنجاح");
+        loadAppointments(true);
     }).catch(err=>{
         hideLoading();
         showToast(DIAG.record(err,"تعديل موعد").title,"error");
@@ -536,6 +541,7 @@ function handleDeleteAppointment(id,name){
         })
     }).then(()=>{
         showToast("تم حذف الموعد");
+        loadAppointments(true);
     }).catch(err=>{
         showToast(DIAG.record(err,"حذف موعد").title,"error");
     });
@@ -553,6 +559,7 @@ function restoreAppointment(id){
         })
     }).then(()=>{
         showToast("تم استرجاع الموعد بنجاح");
+        loadAppointments(true);
     }).catch(err=>{
         showToast(DIAG.record(err,"استرجاع موعد").title,"error");
     });
@@ -667,6 +674,7 @@ function handleAddNote(id){
     addAppointmentNote(id,note,currentUser.name).then(()=>{
         closeModal("noteModal");
         showToast("تمت إضافة الملاحظة بنجاح");
+        loadAppointments(true);
     }).catch(err=>{
         showToast(DIAG.record(err,"إضافة ملاحظة").title,"error");
     });
