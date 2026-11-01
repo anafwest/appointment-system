@@ -1,0 +1,6 @@
+# بيانات الخادم الداخلي ومفاتيح الخدمة (لا تُرفع إلى Git)
+server/data/
+server/service-account.json
+
+node_modules/
+.DS_Store
