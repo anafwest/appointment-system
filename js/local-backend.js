@@ -32,10 +32,25 @@
         }
     }catch(e){ local=null; }
 
-    if(!local){ window.BACKEND_MODE="firebase"; return; }
-
-    window.BACKEND_MODE="local";
-    window.LOCAL_BACKEND=local;
+    if(!local){
+        // لا يوجد خادم داخلي الآن:
+        // - على جهاز الخادم/المتصفح الذي كان يعمل محلياً: نبقى في الوضع المحلي
+        //   ونُظهر تنبيهاً (حتى لا يتحول المستخدم بصمت إلى بيانات Firebase مختلفة).
+        // - على متصفح جديد/خارج الشبكة: ننتقل إلى Firebase.
+        const wasLocal=(function(){ try{ return localStorage.getItem("appt_backend")==="local"; }catch(e){ return false; } })();
+        const sameHost=(function(){ try{ return localStorage.getItem("appt_local_host")===location.host; }catch(e){ return false; } })();
+        if(!(wasLocal&&sameHost)){ window.BACKEND_MODE="firebase"; return; }
+        window.BACKEND_MODE="local";
+        window.LOCAL_BACKEND=null;
+        window.LOCAL_BACKEND_DOWN=true;
+    }else{
+        window.BACKEND_MODE="local";
+        window.LOCAL_BACKEND=local;
+        try{
+            localStorage.setItem("appt_backend","local");
+            localStorage.setItem("appt_local_host",location.host);
+        }catch(e){}
+    }
 
     /* ---------------- طبقة HTTP ---------------- */
     const BASE="api";
@@ -258,6 +273,16 @@
     catch(e){ window.BACKEND_MODE="firebase"; return; }
 
     /* ---------------- شارة الوضع ---------------- */
+    function serverDownBanner(){
+        if(!document.body||document.getElementById("localDown")) return;
+        const d=document.createElement("div");
+        d.id="localDown";
+        d.style.cssText="position:fixed;top:0;left:0;right:0;z-index:99999;background:#c1121f;color:#fff;"+
+            "font-family:'Tajawal',Tahoma,sans-serif;font-size:13px;font-weight:700;padding:9px 16px;text-align:center";
+        d.textContent="تعذّر الوصول إلى الخادم الداخلي — تأكد من تشغيل الخادم أو من اتصالك بالشبكة. لن يتم تحويلك إلى Firebase حفاظاً على بياناتك.";
+        document.body.appendChild(d);
+    }
+
     function badge(){
         if(!document.body||document.getElementById("modeBadge")) return;
         const b=document.createElement("div");
@@ -266,9 +291,10 @@
         b.style.cssText="position:fixed;bottom:16px;right:16px;z-index:99997;background:#006946;color:#fff;"+
             "font-family:'Tajawal',Tahoma,sans-serif;font-size:12px;font-weight:700;padding:7px 12px;"+
             "border-radius:999px;box-shadow:0 6px 18px rgba(0,0,0,.2);opacity:.9;cursor:help";
-        b.textContent="وضع محلي — الشبكة الداخلية";
+        b.textContent=window.LOCAL_BACKEND_DOWN?"وضع محلي — الخادم متوقف":"وضع محلي — الشبكة الداخلية";
         document.body.appendChild(b);
     }
-    if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",badge);
-    else badge();
+    function ui(){ badge(); if(window.LOCAL_BACKEND_DOWN) serverDownBanner(); }
+    if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",ui);
+    else ui();
 })();
