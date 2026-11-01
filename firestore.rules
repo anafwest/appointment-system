@@ -2,18 +2,39 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // التحقق من حجز المستفيد (يُسمح بالحجز العام بدون تسجيل دخول،
+    // لكن بحقول إلزامية وحدود طول تمنع أي كتابة عشوائية أو تخريبية)
+    function validBooking() {
+      let d = request.resource.data;
+      return d.name is string && d.name.size() > 1 && d.name.size() <= 120
+        && d.phone is string && d.phone.size() >= 9 && d.phone.size() <= 15
+        && d.subject is string && d.subject.size() > 1 && d.subject.size() <= 500
+        && d.dept is string && d.dept.size() > 1 && d.dept.size() <= 100
+        && d.date is string && d.date.size() == 10
+        && d.time is string && d.time.size() <= 10
+        && d.status is string
+        && (!d.keys().hasAny(['deleted']) || d.deleted == false);
+    }
+
     match /users/{userId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null;
-      allow update: if request.auth != null;
-      allow delete: if request.auth != null;
+      allow read, create, update, delete: if signedIn();
     }
 
     match /appointments/{appointmentId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null;
-      allow update: if request.auth != null;
-      allow delete: if request.auth != null;
+      // القراءة والتعديل والحذف لموظفي النظام فقط
+      allow get, list: if signedIn();
+      allow update, delete: if signedIn();
+
+      // الحجز العام (صفحة المستفيد) يعمل بدون تسجيل دخول
+      allow create: if signedIn() || validBooking();
+
+      match /attachments/{attId} {
+        allow read, create, update, delete: if signedIn();
+      }
     }
   }
 }

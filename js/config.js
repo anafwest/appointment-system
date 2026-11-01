@@ -11,6 +11,20 @@ firebase.initializeApp(firebaseConfig);
 
 const auth = firebase.auth();
 const db = firebase.firestore();
+
+// تخزين مؤقت دائم (IndexedDB) => تحميل أسرع بكثير في الزيارات المتكررة
+// وبدون أخطاء إذا كان المتصفح لا يدعمه أو كان هناك أكثر من تبويب مفتوح
+try{
+    db.enablePersistence({synchronizeTabs:true}).catch(function(err){
+        console.warn("[config] التخزين المؤقت غير مفعّل:",err&&err.code);
+    });
+}catch(e){
+    console.warn("[config] التخزين المؤقت غير متاح");
+}
+
+// تجاهل الحقول غير المعرّفة بدلاً من إفشال عملية الحفظ بالكامل
+try{ db.settings({ignoreUndefinedProperties:true}); }catch(e){}
+
 let storage=null;
 try{
     if(firebase.storage){

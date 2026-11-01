@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>فاحص النظام - نظام مواعيد قطاع الغرب</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+<style>
+.diag-wrap{max-width:1100px;margin:0 auto;padding:24px 20px 80px}
+.diag-head{background:linear-gradient(135deg,var(--rm-indigo),var(--rm-green));color:#fff;border-radius:18px;padding:24px 26px;display:flex;justify-content:space-between;align-items:center;gap:18px;flex-wrap:wrap;box-shadow:var(--rm-shadow)}
+.diag-head h1{font-size:24px;margin-bottom:6px}
+.diag-head p{font-size:13px;opacity:.9}
+.diag-head .btn{background:#fff;color:var(--rm-green)}
+.diag-card{background:#fff;border-radius:16px;box-shadow:var(--rm-shadow);padding:18px 20px;margin-top:16px;border-right:6px solid #ddd}
+.diag-card.ok{border-right-color:#00a67e}
+.diag-card.warn{border-right-color:#f4a261}
+.diag-card.error{border-right-color:#d62828}
+.diag-card h3{font-size:16px;margin-bottom:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.diag-chip{font-size:11px;font-weight:800;padding:3px 10px;border-radius:999px}
+.chip-ok{background:#e6f7f1;color:#006946}
+.chip-warn{background:#fff4e6;color:#a35c00}
+.chip-error{background:#fdeaea;color:#c1121f}
+.diag-sum{font-size:14px;font-weight:700;color:#2b2d42;line-height:1.8}
+.diag-list{margin:10px 0 0 0;padding-inline-start:18px;font-size:13px;color:#555;line-height:2}
+.diag-fix{margin-top:12px;background:#f4f9f6;border-radius:10px;padding:12px 14px;font-size:13px;color:#214a3a;line-height:2}
+.diag-fix b{color:#006946}
+.diag-raw{margin-top:10px;font-size:11px;color:#888;direction:ltr;text-align:left;word-break:break-word;white-space:pre-wrap;background:#fafafa;border-radius:8px;padding:8px}
+.tools{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-top:22px}
+.tool{background:#fff;border-radius:16px;box-shadow:var(--rm-shadow);padding:18px}
+.tool h4{font-size:15px;margin-bottom:8px;color:var(--rm-indigo)}
+.tool p{font-size:13px;color:#666;line-height:1.9;margin-bottom:12px}
+.log{background:#0f172a;color:#c7f9e5;font-size:12px;border-radius:12px;padding:14px;margin-top:16px;max-height:240px;overflow:auto;direction:rtl;line-height:2;display:none;white-space:pre-wrap}
+.muted{color:#888;font-size:12px}
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+<div class="logo-area"><div>
+<div class="logo-text">أمانة منطقة الرياض</div>
+<div class="logo-sub">قطاع الغرب - إدارة علاقات المستفيدين</div>
+</div></div>
+<div style="display:flex;align-items:center;gap:18px">
+<div class="user-info" id="userInfo"></div>
+<div class="top-links"><a href="dashboard.html">لوحة التحكم</a> <a href="#" onclick="logoutUser()">تسجيل الخروج</a></div>
+</div>
+</div>
+
+<div class="diag-wrap">
+<div class="diag-head">
+<div>
+<h1>&#128270; فاحص النظام</h1>
+<p>يشرح سبب كل خطأ في النظام بالعربية، ويفحص قاعدة البيانات والصلاحيات والفهارس وسرعة التحميل.</p>
+</div>
+<button class="btn" id="runBtn" onclick="runAll()">إعادة الفحص الآن</button>
+</div>
+
+<div id="results"></div>
+
+<div class="tools">
+<div class="tool">
+<h4>إصلاح الحقول الناقصة</h4>
+<p>يضيف <b>deptPath</b> و<b>status</b> وبقية الحقول للمواعيد القديمة (خصوصاً الحجوزات الذاتية)، وهي السبب الأول في عدم ظهور المواعيد لدى الإدارات.</p>
+<button class="btn btn-primary btn-sm" onclick="fixFields()">تحليل وإصلاح</button>
+</div>
+<div class="tool">
+<h4>تخفيف مستندات المواعيد</h4>
+<p>ينقل المرفقات القديمة المحفوظة داخل مستند الموعد (Base64) إلى مستندات منفصلة، ما يجعل تحميل المواعيد أسرع بكثير.</p>
+<button class="btn btn-primary btn-sm" onclick="fixAttachments()">فحص المرفقات</button>
+</div>
+<div class="tool">
+<h4>نسخ التقرير</h4>
+<p>انسخ نتيجة الفحص كاملة لمشاركتها مع الدعم الفني أو مطوّر النظام.</p>
+<button class="btn btn-secondary btn-sm" onclick="copyReport()">نسخ التقرير</button>
+</div>
+</div>
+
+<div class="log" id="log"></div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+<script src="js/config.js"></script>
+<script src="js/diagnostics.js"></script>
+<script src="js/auth.js"></script>
+<script>
+let lastResults=[];
+let running=false;
+
+function showToast(msg,type){
+    let t=document.getElementById("toast");
+    t.textContent=msg;
+    t.className="toast show "+(type||"success");
+    clearTimeout(t._t);
+    t._t=setTimeout(()=>{t.className="toast";},type==="error"?7000:3500);
+}
+function log(msg){
+    let el=document.getElementById("log");
+    el.style.display="block";
+    el.textContent+=msg+"\n";
+    el.scrollTop=el.scrollHeight;
+}
+function esc(s){
+    return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+const ICONS={ok:"&#9989;",warn:"&#9888;&#65039;",error:"&#10060;",skip:"&#8226;"};
+const LABELS={ok:"سليم",warn:"ملاحظة",error:"خطأ",skip:"تخطّي"};
+
+requireAuth(user=>{
+    document.getElementById("userInfo").innerHTML=esc(user.name||"")+' <span class="role-badge">'+esc(user.role==="admin"?"مدير النظام":user.role)+'</span>';
+    runAll();
+});
+
+function cardHtml(r){
+    let h='<div class="diag-card '+r.status+'">';
+    h+='<h3>'+ICONS[r.status]+' '+esc(r.title)+' <span class="diag-chip chip-'+r.status+'">'+LABELS[r.status]+'</span></h3>';
+    h+='<div class="diag-sum">'+esc(r.summary)+'</div>';
+    if(r.details&&r.details.length){
+        h+='<ul class="diag-list">'+r.details.map(d=>'<li>'+esc(d)+'</li>').join('')+'</ul>';
+    }
+    if(r.fixes&&r.fixes.length){
+        h+='<div class="diag-fix"><b>ماذا تفعل:</b><ul class="diag-list">'+r.fixes.map(f=>'<li>'+esc(f)+'</li>').join('')+'</ul></div>';
+    }
+    h+='</div>';
+    return h;
+}
+
+async function runAll(){
+    if(running) return;
+    running=true;
+    let btn=document.getElementById("runBtn");
+    btn.disabled=true;
+    btn.textContent="جارٍ الفحص…";
+    let box=document.getElementById("results");
+    box.innerHTML='<div class="diag-card"><div class="diag-sum">جارٍ فحص النظام… قد يستغرق 5–15 ثانية</div></div>';
+
+    try{
+        lastResults=await DIAG.runChecks(function(r){
+            // عرض تدريجي
+            box.innerHTML+=cardHtml(r);
+        });
+        box.innerHTML=lastResults.map(cardHtml).join('');
+        let errs=lastResults.filter(r=>r.status==="error").length;
+        let warns=lastResults.filter(r=>r.status==="warn").length;
+        showToast(errs?("تم الفحص: "+errs+" خطأ و"+warns+" ملاحظة"):("تم الفحص: النظام سليم"+(warns?" مع "+warns+" ملاحظة":"")),errs?"error":"success");
+    }catch(e){
+        let ex=DIAG.record(e,"تشغيل الفحص");
+        box.innerHTML=cardHtml({title:"تعذّر إكمال الفحص",status:"error",summary:ex.title,details:[ex.raw],fixes:[ex.fix]});
+    }finally{
+        running=false;
+        btn.disabled=false;
+        btn.textContent="إعادة الفحص الآن";
+    }
+}
+
+async function fixFields(){
+    if(!confirm("سيتم تحليل كل المواعيد وإضافة الحقول الناقصة. متابعة؟")) return;
+    log("== بدء تحليل الحقول الناقصة ==");
+    try{
+        let dry=await DIAG.backfill({dryRun:true});
+        log("عدد المواعيد التي تحتاج إصلاحاً: "+dry.changed);
+        if(!dry.changed){ showToast("لا توجد حقول ناقصة"); return; }
+        if(!confirm("سيتم تعديل "+dry.changed+" موعداً وإضافة سجل بذلك. تنفيذ الإصلاح؟")) return;
+        let r=await DIAG.backfill({onProgress:(d,t)=>log("تم إصلاح "+d+" من "+t)});
+        log("اكتمل الإصلاح: "+r.done+" مستنداً");
+        showToast("تم إصلاح "+r.done+" موعداً");
+        await runAll();
+    }catch(e){
+        let ex=DIAG.record(e,"إصلاح الحقول");
+        log("فشل: "+ex.title+" — "+ex.raw);
+        showToast(ex.title,"error");
+    }
+}
+
+async function fixAttachments(){
+    log("== فحص المرفقات المدمجة ==");
+    try{
+        let dry=await DIAG.migrateAttachments({dryRun:true});
+        log("مستندات تحتوي مرفقات مدمجة: "+dry.docs+" · عدد المرفقات: "+dry.attachments+" · الحجم: "+(dry.bytes/1024/1024).toFixed(2)+" م.ب");
+        if(!dry.docs){ showToast("لا توجد مرفقات مدمجة — كل شيء سليم"); return; }
+        if(!confirm("سيتم نقل "+dry.attachments+" مرفقاً من داخل مستندات المواعيد إلى مستندات منفصلة (قد يستغرق وقتاً). متابعة؟")) return;
+        await DIAG.migrateAttachments({onProgress:n=>log("تم نقل "+n+" مرفقاً")});
+        showToast("تم نقل المرفقات بنجاح");
+        await runAll();
+    }catch(e){
+        let ex=DIAG.record(e,"نقل المرفقات");
+        log("فشل: "+ex.title+" — "+ex.raw);
+        showToast(ex.title,"error");
+    }
+}
+
+function copyReport(){
+    if(!lastResults.length){ showToast("شغّل الفحص أولاً","error"); return; }
+    let txt="تقرير فاحص النظام — "+new Date().toLocaleString("ar-SA")+"\n\n";
+    lastResults.forEach(r=>{
+        txt+="["+LABELS[r.status]+"] "+r.title+"\n"+r.summary+"\n";
+        (r.details||[]).forEach(d=>txt+="  - "+d+"\n");
+        (r.fixes||[]).forEach(f=>txt+="  > "+f+"\n");
+        txt+="\n";
+    });
+    let errs=DIAG.list();
+    if(errs.length){
+        txt+="=== الأخطاء المسجّلة ===\n";
+        errs.forEach(e=>{ txt+=e.code+" | "+e.title+"\n"+e.raw+"\n\n"; });
+    }
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+        navigator.clipboard.writeText(txt).then(()=>showToast("تم نسخ التقرير"),()=>fallbackCopy(txt));
+    }else{
+        fallbackCopy(txt);
+    }
+}
+function fallbackCopy(txt){
+    let ta=document.createElement("textarea");
+    ta.value=txt;
+    document.body.appendChild(ta);
+    ta.select();
+    try{ document.execCommand("copy"); showToast("تم نسخ التقرير"); }
+    catch(e){ alert(txt); }
+    ta.remove();
+}
+</script>
+</body>
+</html>

@@ -1,7 +1,39 @@
+/* ============================================================
+   منطق المواعيد - نسخة محسّنة (سرعة + تحديث لحظي + توافق مع البيانات القديمة)
+   ============================================================ */
+
+function tsToMillis(v){
+    if(!v) return 0;
+    if(typeof v.toMillis==="function") return v.toMillis();
+    if(typeof v.seconds==="number") return v.seconds*1000;
+    if(v instanceof Date) return v.getTime();
+    if(typeof v==="string"){ let d=new Date(v); return isNaN(d)?0:d.getTime(); }
+    return 0;
+}
+
+function mapDocs(snap){
+    let apts=[];
+    snap.forEach(doc=>{
+        let d=doc.data()||{};
+        apts.push(Object.assign({id:doc.id},d));
+    });
+    apts.sort((a,b)=>tsToMillis(b.createdAt)-tsToMillis(a.createdAt));
+    return apts;
+}
+
 function addAppointment(data){
-    return db.collection("appointments").add({
-        ...data,
-        status:"جديد",
+    // إصلاح: كانت المواعيد المحجوزة من صفحة الحجز العام تُحفظ بدون deptPath
+    // فلا تظهر أبداً لموظفي الإدارة المختصة.
+    let dept=data.dept||"";
+    let deptPath=Array.isArray(data.deptPath)&&data.deptPath.length?data.deptPath:(dept?[dept]:[]);
+    let payload=Object.assign({},data,{
+        dept:dept,
+        deptPath:deptPath,
+        priority:data.priority||"عادي",
+        notes:data.notes||"",
+        createdByDept:(data.createdByDept===undefined?"":data.createdByDept),
+        status:data.status||"جديد",
+        deleted:false,
         createdAt:firebase.firestore.FieldValue.serverTimestamp(),
         history:[{
             action:"إنشاء الموعد",
@@ -10,6 +42,11 @@ function addAppointment(data){
         }],
         attachments:[]
     });
+    delete payload.id;
+    if(data.id){
+        return db.collection("appointments").doc(String(data.id)).set(payload).then(()=>db.collection("appointments").doc(String(data.id)));
+    }
+    return db.collection("appointments").add(payload);
 }
 
 function updateAppointment(id,data){
@@ -28,8 +65,8 @@ function addAppointmentNote(id,note,by){
 
 function forwardAppointment(id,newDept,newStatus,notes,by){
     return db.collection("appointments").doc(id).get().then(doc=>{
-        let apt=doc.data();
-        let oldDept=apt.dept;
+        let apt=doc.data()||{};
+        let oldDept=apt.dept||"-";
         return db.collection("appointments").doc(id).update({
             dept:newDept,
             status:newStatus,
@@ -47,9 +84,11 @@ function forwardAppointment(id,newDept,newStatus,notes,by){
 function markAppointmentDone(id,by){
     let now=new Date().toISOString();
     return db.collection("appointments").doc(id).get().then(doc=>{
-        let apt=doc.data();
-        let created=apt.createdAt?apt.createdAt.toDate():new Date(apt.history?.[0]?.date||now);
-        let diffMs=new Date()-created;
+        let apt=doc.data()||{};
+        let created=apt.createdAt&&typeof apt.createdAt.toDate==="function"
+            ?apt.createdAt.toDate()
+            :new Date((apt.history&&apt.history[0]&&apt.history[0].date)||now);
+        let diffMs=Math.max(0,new Date()-created);
         let diffDays=Math.floor(diffMs/(1000*60*60*24));
         let diffHours=Math.floor((diffMs%(1000*60*60*24))/(1000*60*60));
         let duration=diffDays+" يوم "+diffHours+" ساعة";
@@ -67,7 +106,10 @@ function markAppointmentDone(id,by){
     });
 }
 
-function getAppointments(filters={}){
+/* ---------- قراءات ---------- */
+
+function getAppointments(filters){
+    filters=filters||{};
     let query=db.collection("appointments");
 
     if(filters.dept){
@@ -83,51 +125,95 @@ function getAppointments(filters={}){
         query=query.where("date","<=",filters.dateTo);
     }
 
-    return query.get().then(snap=>{
-        let apts=[];
-        snap.forEach(doc=>{
-            apts.push({id:doc.id,...doc.data()});
+    return query.get().then(mapDocs);
+}
+
+/* كل المواعيد - للاستخدام الإداري فقط (يُفضّل الاعتماد على الكاش اللحظي في الصفحة) */
+function getAppointmentsForUser(userRole,userDept){
+    if(userRole==="admin") return getAppointments();
+
+    // إصلاح: مسؤول التسجيل وموظف الإدارة يعتمدان على deptPath.
+    // المستندات القديمة (التي أُنشئت قبل الإصلاح) لا تحتوي deptPath، لذلك يوجد دمج احتياطي.
+    if(!userDept) return getAppointments();
+
+    return db.collection("appointments")
+        .where("deptPath","array-contains",userDept)
+        .get()
+        .then(snap=>{
+            let list=mapDocs(snap);
+            if(list.length>0) return list;
+            return db.collection("appointments")
+                .where("dept","==",userDept)
+                .get()
+                .then(mapDocs);
+        })
+        .then(list=>{
+            if(userRole==="registration"){
+                // إضافة ما أنشأه المسؤول نفسه بغض النظر عن الإدارة الحالية
+                return db.collection("appointments")
+                    .where("createdByDept","==",userDept)
+                    .get()
+                    .then(snap=>{
+                        let byMe=mapDocs(snap);
+                        let seen={};
+                        list.forEach(a=>seen[a.id]=true);
+                        byMe.forEach(a=>{ if(!seen[a.id]) list.push(a); });
+                        list.sort((a,b)=>tsToMillis(b.createdAt)-tsToMillis(a.createdAt));
+                        return list;
+                    })
+                    .catch(()=>list);
+            }
+            return list;
         });
-        apts.sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
-        return apts;
-    });
+}
+
+/* تحديث لحظي: أي موعد جديد أو تعديل يظهر مباشرة بدون إعادة تحميل */
+function mergeLists(){
+    let out=[],seen={};
+    for(let i=0;i<arguments.length;i++){
+        (arguments[i]||[]).forEach(a=>{
+            if(!seen[a.id]){ seen[a.id]=true; out.push(a); }
+        });
+    }
+    out.sort((a,b)=>tsToMillis(b.createdAt)-tsToMillis(a.createdAt));
+    return out;
+}
+
+function watchAppointments(userRole,userDept,onData,onError){
+    let col=db.collection("appointments");
+
+    function single(query){
+        return query.onSnapshot({includeMetadataChanges:false},snap=>{
+            onData(mapDocs(snap),{fromCache:snap.metadata.fromCache,pendingWrites:snap.metadata.hasPendingWrites});
+        },err=>{ if(onError) onError(err); });
+    }
+
+    if(userRole==="admin"||!userDept) return single(col);
+
+    if(userRole==="registration"){
+        // مسؤول التسجيل يرى: ما وصل إلى إدارته + كل ما أنشأه بنفسه
+        let a=[],b=[],metaA={fromCache:false,pendingWrites:false},metaB=metaA;
+        let emit=()=>onData(mergeLists(a,b),{
+            fromCache:!!(metaA.fromCache&&metaB.fromCache),
+            pendingWrites:!!(metaA.pendingWrites||metaB.pendingWrites)
+        });
+        let un1=col.where("deptPath","array-contains",userDept).onSnapshot({includeMetadataChanges:false},snap=>{
+            a=mapDocs(snap); metaA=snap.metadata; emit();
+        },err=>{ if(onError) onError(err); });
+        let un2=col.where("createdByDept","==",userDept).onSnapshot({includeMetadataChanges:false},snap=>{
+            b=mapDocs(snap); metaB=snap.metadata; emit();
+        },err=>{ if(onError) onError(err); });
+        return function(){ try{un1();}catch(e){} try{un2();}catch(e){} };
+    }
+
+    return single(col.where("deptPath","array-contains",userDept));
 }
 
 function getAppointmentById(id){
     return db.collection("appointments").doc(id).get().then(doc=>{
-        if(doc.exists) return {id:doc.id,...doc.data()};
+        if(doc.exists) return Object.assign({id:doc.id},doc.data());
         return null;
     });
-}
-
-function getAppointmentsForUser(userRole,userDept){
-    if(userRole==="admin"){
-        return getAppointments();
-    }else if(userRole==="registration"){
-        return db.collection("appointments")
-            .where("createdByDept","==",userDept)
-            .get()
-            .then(snap=>{
-                let apts=[];
-                snap.forEach(doc=>{
-                    apts.push({id:doc.id,...doc.data()});
-                });
-                apts.sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
-                return apts;
-            });
-    }else{
-        return db.collection("appointments")
-            .where("deptPath","array-contains",userDept)
-            .get()
-            .then(snap=>{
-                let apts=[];
-                snap.forEach(doc=>{
-                    apts.push({id:doc.id,...doc.data()});
-                });
-                apts.sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
-                return apts;
-            });
-    }
 }
 
 function getReturnedCountForUser(userName,userDept){
@@ -136,12 +222,48 @@ function getReturnedCountForUser(userName,userDept){
         .get().then(snap=>{
             let count=0;
             snap.forEach(doc=>{
-                let d=doc.data();
-                if(d.returnedDate&&d.createdBy===userName&&!d.deleted&&d.status!=="منجز") count++;
+                let d=doc.data()||{};
+                if((d.returnedDate||d.returnedTo)&&d.createdBy===userName&&!d.deleted&&d.status!=="منجز") count++;
             });
             return count;
         });
 }
+
+function getCompletedCountForUser(userName){
+    return db.collection("appointments")
+        .where("status","==","منجز")
+        .get().then(snap=>{
+            let count=0;
+            snap.forEach(doc=>{
+                let d=doc.data()||{};
+                if(!d.deleted&&d.createdBy===userName) count++;
+            });
+            return count;
+        });
+}
+
+/* إحصاءات محسوبة من قائمة جاهزة - توفّر استعلاماً كاملاً لكل تحميل */
+function getStatsFromAppointments(list){
+    let total=0,newCount=0,pending=0,active=0,done=0,returned=0;
+    (list||[]).forEach(a=>{
+        if(a.deleted) return;
+        total++;
+        if(a.status==="جديد"||!a.status) newCount++;
+        if(a.status==="قيد الانتظار") pending++;
+        if(a.status==="قيد التنفيذ") active++;
+        if(a.status==="منجز") done++;
+        if(a.status==="مرتجع"||a.status==="مرفوض") returned++;
+    });
+    return {total,newCount,pending,active,done,returned};
+}
+
+function getAppointmentStats(dept){
+    let query=db.collection("appointments");
+    if(dept) query=query.where("dept","==",dept);
+    return query.get().then(snap=>getStatsFromAppointments(mapDocs(snap)));
+}
+
+/* ---------- المرفقات ---------- */
 
 function compressImage(file,maxW,maxH){
     return new Promise((resolve,reject)=>{
@@ -160,155 +282,105 @@ function compressImage(file,maxW,maxH){
             c.toBlob(function(blob){
                 URL.revokeObjectURL(url);
                 resolve(blob);
-            },"image/jpeg",0.8);
+            },"image/jpeg",0.75);
         };
-        img.onerror=function(){reject(new Error("فشل قراءة الصورة"));};
+        img.onerror=function(){ URL.revokeObjectURL(url); reject(new Error("فشل قراءة الصورة")); };
         img.src=url;
     });
 }
 
+/* المرفقات تُحفظ الآن في مجموعة فرعية appointments/{id}/attachments بدل تضخيم مستند الموعد.
+   الترتيب: Storage → مجموعة فرعية → (احتياطي أخير) داخل المستند لضمان عدم فقدان الملف. */
 function uploadAttachment(file,aptId){
-    let uploadToFirestore=function(data,name,type,size){
+    let sub=db.collection("appointments").doc(aptId).collection("attachments");
+
+    function addToSub(extra){
+        return sub.add(Object.assign({
+            name:file.name,
+            type:file.type,
+            size:file.size,
+            uploadedAt:new Date().toISOString()
+        },extra));
+    }
+
+    function legacyEmbedded(data,type,size){
         return db.collection("appointments").doc(aptId).update({
             attachments:firebase.firestore.FieldValue.arrayUnion({
-                name:name,
-                data:data,
-                type:type,
-                size:size,
+                name:file.name,data:data,type:type,size:size,
                 uploadedAt:new Date().toISOString()
             })
         });
-    };
-
-    // Try Firebase Storage first
-    if(storage){
-        let ref=storage.ref("attachments/"+aptId+"/"+file.name);
-        return ref.put(file).then(()=>ref.getDownloadURL()).then(url=>{
-            return db.collection("appointments").doc(aptId).update({
-                attachments:firebase.firestore.FieldValue.arrayUnion({
-                    name:file.name,
-                    url:url,
-                    type:file.type,
-                    size:file.size,
-                    uploadedAt:new Date().toISOString()
-                })
-            });
-        }).catch(()=>{
-            // Storage failed - fall back to base64
-            return fallbackUpload(file,aptId);
-        });
-    }else{
-        return fallbackUpload(file,aptId);
     }
-}
 
-function fallbackUpload(file,aptId){
-    return new Promise((resolve,reject)=>{
+    function prepareImage(){
         if(file.type&&file.type.startsWith("image/")){
-            compressImage(file,1200,1200).then(compressed=>{
-                let reader=new FileReader();
-                reader.onload=function(e){
-                    let data=e.target.result;
-                    if(data.length>900000){
-                        reject(new Error("الصورة كبيرة جداً بعد الضغط - اختر صورة أقل دقة"));
-                        return;
-                    }
-                    db.collection("appointments").doc(aptId).update({
-                        attachments:firebase.firestore.FieldValue.arrayUnion({
-                            name:file.name,
-                            data:data,
-                            type:"image/jpeg",
-                            size:compressed.size,
-                            uploadedAt:new Date().toISOString()
-                        })
-                    }).then(resolve).catch(reject);
-                };
-                reader.readAsDataURL(compressed);
-            }).catch(reject);
-        }else{
-            let reader=new FileReader();
-            reader.onload=function(e){
-                let data=e.target.result;
-                if(data.length>800000){
-                    reject(new Error("حجم الملف كبير جداً (الحد الأعلى ~600KB). استخدم Firebase Storage برفع الخطة"));
-                    return;
-                }
-                db.collection("appointments").doc(aptId).update({
-                    attachments:firebase.firestore.FieldValue.arrayUnion({
-                        name:file.name,
-                        data:data,
-                        type:file.type,
-                        size:file.size,
-                        uploadedAt:new Date().toISOString()
-                    })
-                }).then(resolve).catch(reject);
-            };
-            reader.readAsDataURL(file);
-        }
-    });
-}
-
-function getAppointmentStats(dept){
-    let query=db.collection("appointments");
-    if(dept) query=query.where("dept","==",dept);
-
-    return query.get().then(snap=>{
-        let total=0,newCount=0,pending=0,active=0,done=0,returned=0;
-        snap.forEach(doc=>{
-            let d=doc.data();
-            if(d.deleted) return;
-            total++;
-            if(d.status==="جديد") newCount++;
-            if(d.status==="قيد الانتظار") pending++;
-            if(d.status==="قيد التنفيذ") active++;
-            if(d.status==="منجز") done++;
-            if(d.status==="مرتجع") returned++;
-        });
-        return {total,newCount,pending,active,done,returned};
-    });
-}
-
-function respondAppointment(id,responseStatus,reason,by){
-    let now=new Date().toISOString();
-    return db.collection("appointments").doc(id).get().then(doc=>{
-        let apt=doc.data();
-        return db.collection("appointments").doc(id).update({
-            status:responseStatus,
-            notes:(apt.notes?apt.notes+"\n":"")+"رد ("+responseStatus+") - "+reason,
-            dept:apt.createdByDept||"",
-            returnedDate:now,
-            respondedBy:by,
-            history:firebase.firestore.FieldValue.arrayUnion({
-                action:"رد من "+apt.dept+" - "+responseStatus+" - "+reason,
-                date:now,
-                by:by
-            })
-        });
-    });
-}
-
-function getCompletedCountForUser(userName){
-    return db.collection("appointments")
-        .where("status","==","منجز")
-        .get().then(snap=>{
-            let count=0;
-            snap.forEach(doc=>{
-                let d=doc.data();
-                if(!d.deleted&&d.createdBy===userName) count++;
+            return compressImage(file,1200,1200).then(blob=>{
+                return new Promise((resolve,reject)=>{
+                    let reader=new FileReader();
+                    reader.onload=e=>resolve({data:e.target.result,type:"image/jpeg",size:blob.size});
+                    reader.onerror=reject;
+                    reader.readAsDataURL(blob);
+                });
             });
-            return count;
+        }
+        return new Promise((resolve,reject)=>{
+            if(file.size>700*1024){
+                return reject(new Error("الملف كبير ("+(file.size/1024).toFixed(0)+" ك.ب). الحد الأعلى للملفات غير المصوّرة ~700 ك.ب"));
+            }
+            let reader=new FileReader();
+            reader.onload=e=>resolve({data:e.target.result,type:file.type,size:file.size});
+            reader.onerror=reject;
+            reader.readAsDataURL(file);
         });
+    }
+
+    return prepareImage().then(prepared=>{
+        let withUrl=function(){
+            if(!storage) return Promise.resolve(false);
+            let ref=storage.ref("attachments/"+aptId+"/"+Date.now()+"_"+file.name);
+            return ref.putString(prepared.data,"data_url")
+                .then(()=>ref.getDownloadURL())
+                .then(url=>addToSub({url:url}))
+                .then(()=>true)
+                .catch(()=>false);
+        };
+        return withUrl().then(done=>{
+            if(done) return true;
+            return addToSub({data:prepared.data,type:prepared.type,size:prepared.size}).then(()=>true);
+        });
+    }).catch(err=>{
+        // احتياطي أخير حتى لا يضيع الملف
+        return prepareImage()
+            .then(p=>legacyEmbedded(p.data,p.type,p.size))
+            .catch(()=>{ throw err; });
+    });
+}
+
+/* قراءة المرفقات (الجديدة من المجموعة الفرعية + القديمة من المستند) */
+function getAttachments(apt){
+    let aptId=typeof apt==="string"?apt:apt.id;
+    let inline=typeof apt==="object"&&apt?((apt.attachments||[]).filter(a=>a&&(a.data||a.url))):[];
+    return db.collection("appointments").doc(aptId).collection("attachments").get()
+        .then(snap=>{
+            let list=[];
+            snap.forEach(d=>{
+                let a=d.data()||{};
+                a.id=d.id;
+                list.push(a);
+            });
+            return list.concat(inline);
+        })
+        .catch(()=>inline);
 }
 
 function getStatusBadge(status){
+    let s=status||"جديد";
     let cls="status-new";
-    if(status==="جديد") cls="status-new";
-    if(status==="قيد الانتظار") cls="status-pending";
-    if(status==="قيد التنفيذ") cls="status-active";
-    if(status==="منجز") cls="status-done";
-    if(status==="مرتجع") cls="status-returned";
-    if(status==="مرفوض") cls="status-returned";
-    return '<span class="status-badge '+cls+'">'+status+'</span>';
+    if(s==="قيد الانتظار") cls="status-pending";
+    if(s==="قيد التنفيذ") cls="status-active";
+    if(s==="منجز") cls="status-done";
+    if(s==="مرتجع"||s==="مرفوض") cls="status-returned";
+    return '<span class="status-badge '+cls+'">'+s+'</span>';
 }
 
 function getNow(){
@@ -323,4 +395,30 @@ function getNow(){
 function formatDate(dateStr){
     if(!dateStr) return "-";
     return dateStr;
+}
+
+function respondAppointment(id,responseStatus,reason,by){
+    let now=new Date().toISOString();
+    return db.collection("appointments").doc(id).get().then(doc=>{
+        let apt=doc.data()||{};
+        let patch={
+            status:responseStatus,
+            notes:(apt.notes?apt.notes+"\n":"")+"رد ("+responseStatus+") - "+reason,
+            respondedBy:by,
+            returnedDate:now,
+            returnedTo:apt.createdByDept||"",
+            history:firebase.firestore.FieldValue.arrayUnion({
+                action:"رد من "+(apt.dept||"-")+" - "+responseStatus+" - "+reason,
+                date:now,
+                by:by
+            })
+        };
+        // لا نُفرغ الإدارة إذا لم يكن الموعد مرتبطاً بمسؤول تسجيل (حجز ذاتي)،
+        // وإلا اختفى الموعد من كل شاشات الإدارة.
+        if(apt.createdByDept){
+            patch.dept=apt.createdByDept;
+            patch.deptPath=firebase.firestore.FieldValue.arrayUnion(apt.createdByDept);
+        }
+        return db.collection("appointments").doc(id).update(patch);
+    });
 }
