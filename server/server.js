@@ -20,6 +20,11 @@ const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const DB_FILE = path.join(DATA_DIR, 'db.json');
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@local';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'Admin@12345';
+const BACKUP_DIR = path.join(DATA_DIR, 'backups');
+const BACKUP_KEEP = Math.max(3, Number(process.env.BACKUP_KEEP || 14));
+const SESSION_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // أسبوع
+const LOGIN_MAX_FAILS = Number(process.env.LOGIN_MAX_FAILS || 10);
+const LOGIN_BLOCK_MS = Number(process.env.LOGIN_BLOCK_MINUTES || 5) * 60 * 1000;
 
 /* ---------------- قاعدة البيانات (ملف JSON) ---------------- */
 let db = { collections: {} };
@@ -34,7 +39,7 @@ function load() {
   db.collections = db.collections || {};
   db.sessions = db.sessions || {};
   // استعادة الجلسات المحفوظة (حتى لا يخرج الموظفون عند إعادة تشغيل الخادم)
-  const WEEK = 7 * 24 * 60 * 60 * 1000;
+  const WEEK = SESSION_MAX_AGE;
   const now = Date.now();
   Object.keys(db.sessions).forEach(sid => {
     const s = db.sessions[sid];
@@ -52,6 +57,39 @@ function save() {
   if (saveTimer) return;
   saveTimer = setTimeout(() => { saveTimer = null; try { saveNow(); } catch (e) { console.error('save failed', e); } }, 120);
 }
+/* ---------------- النسخ الاحتياطي ---------------- */
+function backupNow(reason) {
+  try {
+    fs.mkdirSync(BACKUP_DIR, { recursive: true });
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const file = path.join(BACKUP_DIR, 'db-' + (reason ? reason + '-' : '') + stamp + '.json');
+    fs.writeFileSync(file, JSON.stringify(db));
+    const files = fs.readdirSync(BACKUP_DIR).filter(f => f.indexOf('db-') === 0 && f.slice(-5) === '.json').sort();
+    while (files.length > BACKUP_KEEP) {
+      try { fs.unlinkSync(path.join(BACKUP_DIR, files.shift())); } catch (e) {}
+    }
+    return file;
+  } catch (e) {
+    console.error('تعذّر إنشاء نسخة احتياطية:', e.message);
+    return null;
+  }
+}
+
+function pruneSessions() {
+  const now = Date.now();
+  let removed = 0;
+  if (!db.sessions) return 0;
+  Object.keys(db.sessions).forEach(sid => {
+    const s = db.sessions[sid];
+    if (!s || !s.at || now - s.at > SESSION_MAX_AGE) {
+      delete db.sessions[sid];
+      sessions.delete(sid);
+      removed++;
+    }
+  });
+  return removed;
+}
+
 function coll(p) {
   const key = String(p || '').replace(/^\/+|\/+$/g, '');
   if (!db.collections[key]) db.collections[key] = {};
@@ -140,6 +178,29 @@ function matches(doc, filters) {
 
 /* ---------------- الجلسات ---------------- */
 const sessions = new Map();
+const loginAttempts = new Map(); // عنوان IP -> {fails, blockedUntil}
+
+function clientIp(req) {
+  const fwd = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+  return fwd || (req.socket && req.socket.remoteAddress) || 'unknown';
+}
+function loginBlocked(req) {
+  const rec = loginAttempts.get(clientIp(req));
+  if (!rec || !rec.blockedUntil) return 0;
+  const left = rec.blockedUntil - Date.now();
+  return left > 0 ? left : 0;
+}
+function loginFailed(req) {
+  const ip = clientIp(req);
+  const rec = loginAttempts.get(ip) || { fails: 0, blockedUntil: 0 };
+  rec.fails++;
+  if (rec.fails >= LOGIN_MAX_FAILS) {
+    rec.blockedUntil = Date.now() + LOGIN_BLOCK_MS;
+    rec.fails = 0;
+  }
+  loginAttempts.set(ip, rec);
+}
+function loginSucceeded(req) { loginAttempts.delete(clientIp(req)); }
 function newSession(user) {
   const sid = crypto.randomBytes(24).toString('hex');
   const entry = { uid: user.uid, anonymous: !!user.anonymous, at: Date.now() };
@@ -409,12 +470,23 @@ async function handleApi(req, res, url) {
     return send(res, 200, { user: user || null });
   }
   if (p === '/api/auth/login' && req.method === 'POST') {
+    const blockedMs = loginBlocked(req);
+    if (blockedMs > 0) {
+      const mins = Math.ceil(blockedMs / 60000);
+      const label = mins === 1 ? 'دقيقة واحدة' : (mins === 2 ? 'دقيقتين' : (mins <= 10 ? mins + ' دقائق' : mins + ' دقيقة'));
+      return send(res, 429, { error: { code: 'auth/too-many-requests',
+        message: 'محاولات دخول كثيرة من هذا الجهاز — حاول بعد ' + label } });
+    }
     const body = await readBody(req);
     const email = String(body.email || '').trim().toLowerCase();
     const users = coll('users');
     const uid = Object.keys(users).find(k => String(users[k].email || '').toLowerCase() === email);
-    if (!uid) return fail(res, 401, 'auth/user-not-found', 'البريد الإلكتروني غير مسجل');
-    if (!verifyPassword(body.password || '', users[uid].password)) return fail(res, 401, 'auth/wrong-password', 'كلمة المرور غير صحيحة');
+    if (!uid) { loginFailed(req); return fail(res, 401, 'auth/user-not-found', 'البريد الإلكتروني غير مسجل'); }
+    if (!verifyPassword(body.password || '', users[uid].password)) {
+      loginFailed(req);
+      return fail(res, 401, 'auth/wrong-password', 'كلمة المرور غير صحيحة');
+    }
+    loginSucceeded(req);
     const sid = newSession({ uid });
     const u = users[uid];
     return send(res, 200, {
@@ -535,6 +607,24 @@ async function handleApi(req, res, url) {
     save(); touched.forEach(broadcast);
     if (touched.has('appointments')) scheduleSyncSoon('batch');
     return send(res, 200, { ok: true });
+  }
+
+  /* --- النسخ الاحتياطي --- */
+  if (p === '/api/backup/download') {
+    if (!isAdmin(user)) return fail(res, 403, 'permission-denied', 'النسخ الاحتياطي لمدير النظام فقط');
+    saveNow();
+    const name = 'appointments-backup-' + new Date().toISOString().slice(0, 10) + '.json';
+    res.writeHead(200, {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Content-Disposition': 'attachment; filename="' + name + '"',
+      'Cache-Control': 'no-store'
+    });
+    return res.end(fs.readFileSync(DB_FILE));
+  }
+  if (p === '/api/backup/now' && req.method === 'POST') {
+    if (!isAdmin(user)) return fail(res, 403, 'permission-denied', 'النسخ الاحتياطي لمدير النظام فقط');
+    const file = backupNow('manual');
+    return send(res, 200, { ok: !!file, file: file ? path.basename(file) : null, dir: BACKUP_DIR });
   }
 
   /* --- المزامنة مع Firebase --- */
@@ -677,6 +767,14 @@ const server = http.createServer((req, res) => {
 });
 
 startSyncScheduler();
+backupNow('startup');
+const dailyBackupTimer = setInterval(() => backupNow('daily'), 24 * 60 * 60 * 1000);
+if (dailyBackupTimer.unref) dailyBackupTimer.unref();
+const sessionCleanupTimer = setInterval(() => {
+  const removed = pruneSessions();
+  if (removed) { save(); console.log('تم تنظيف ' + removed + ' جلسة منتهية'); }
+}, 6 * 60 * 60 * 1000);
+if (sessionCleanupTimer.unref) sessionCleanupTimer.unref();
 
 function lanAddresses() {
   const out = [];

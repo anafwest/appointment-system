@@ -83,5 +83,19 @@ node server/sync-firebase.js pull     # Firebase ← المحلي
 واحفظه في `server/service-account.json` (مستثنى من Git).
 قاعدة الترجيح: أحدث `updatedAt` يفوز، ولا تُحذف أي بيانات من السحابة.
 
-## النسخ الاحتياطي
-كل البيانات في ملف واحد: `server/data/db.json` — انسخه دورياً (مهم).
+## النسخ الاحتياطي (تلقائي)
+- نسخة عند كل تشغيل + نسخة يومية، تُحفظ في `server/data/backups/` (يُحتفظ بآخر 14 نسخة).
+- من فاحص النظام (مدير النظام): **تنزيل نسخة** أو **إنشاء نسخة الآن**.
+- الاستعادة: أوقف الخادم، استبدل `server/data/db.json` بالنسخة المطلوبة، ثم شغّله.
+- كل البيانات في ملف واحد — احتفظ بنسخ خارج الخادم دورياً (قرص/مجلد شبكي).
+
+## التشغيل التلقائي على ويندوز
+1. شغّل `server/start-windows.bat` مرة للتأكد من نجاح الإقلاع.
+2. Task Scheduler ← Create Task ← Triggers: **At startup**.
+3. Actions ← Start a program ← المسار الكامل لـ `node.exe`، و Argument: `server\server.js`،
+   و Start in: مجلد المشروع.
+4. Settings ← أوقف "Stop the task if it runs longer than…" ليبقى الخادم يعمل دائماً.
+
+## حماية الدخول
+بعد **10 محاولات خاطئة** من نفس الجهاز يُحجب الدخول **5 دقائق** (`LOGIN_MAX_FAILS` / `LOGIN_BLOCK_MINUTES`)،
+والحجز العام لا يتأثر.

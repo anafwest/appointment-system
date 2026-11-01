@@ -72,6 +72,12 @@
 <button class="btn btn-primary btn-sm" onclick="fixAttachments()">فحص المرفقات</button>
 </div>
 <div class="tool">
+<h4>النسخ الاحتياطي</h4>
+<p>نسخة تلقائية عند كل تشغيل ويومياً (يُحفظ آخر 14 نسخة في مجلد <code>server/data/backups</code>)، ويمكنك تنزيل نسخة الآن.</p>
+<button class="btn btn-primary btn-sm" onclick="backupNow()">إنشاء نسخة الآن</button>
+<button class="btn btn-secondary btn-sm" onclick="downloadBackup()" style="margin-right:8px">تنزيل نسخة</button>
+</div>
+<div class="tool">
 <h4>المزامنة مع Firebase</h4>
 <p>تعرض آخر مزامنة تلقائية للمواعيد إلى السحابة (تعمل كل عدة دقائق)، ويمكنك تشغيلها الآن.</p>
 <div id="syncBox" style="font-size:13px;color:#444;line-height:2">جارٍ قراءة حالة المزامنة…</div>
@@ -251,6 +257,18 @@ function syncNow(){
         loadSyncStatus();
     })
     .catch(e=>{ showToast(e.message,"error"); loadSyncStatus(); });
+}
+
+/* ---------- النسخ الاحتياطي ---------- */
+function backupNow(){
+    if(window.BACKEND_MODE!=="local"){ showToast("النسخ الاحتياطي متاح في الوضع المحلي فقط","error"); return; }
+    window.localApi("POST","/api/backup/now",{})
+        .then(r=>{ showToast("تم إنشاء نسخة احتياطية: "+(r.file||"")); })
+        .catch(e=>showToast(e.message,"error"));
+}
+function downloadBackup(){
+    if(window.BACKEND_MODE!=="local"){ showToast("النسخ الاحتياطي متاح في الوضع المحلي فقط","error"); return; }
+    window.location.href="/api/backup/download";
 }
 
 function copyReport(){
