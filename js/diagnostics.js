@@ -22,8 +22,8 @@ const ERROR_MAP={
 },
 "unavailable":{
  title:"تعذّر الوصول إلى خدمة Firestore (unavailable)",
- cause:"مشكلة شبكة: إنترنت ضعيف، مانع إعلانات، بروكسي الشبكة الحكومية، حجب قناة WebChannel، أو أن الجهاز انتقل من شبكة إلى أخرى.",
- fix:"جرّب شبكة أخرى أو بيانات الجوال، أوقف مانع الإعلانات/extension، وتأكد أن firestore.googleapis.com و firebaseio.com غير محجوبين. النظام الآن يعرض نسخة مخزّنة عند انقطاع الشبكة."
+ cause:"انقطاع الشبكة الداخلية، أو أن بروكسي/جدار الحماية يحجب قناة البث (WebChannel) التي يستخدمها Firestore، أو حجب النطاقات firestore.googleapis.com و firebaseio.com و identitytoolkit.googleapis.com.",
+ fix:"١) تحقق من الاتصال ثم أعد المحاولة (النظام يعمل الآن بالنسخة المخزّنة ويحفظ التعديلات في طابور). ٢) إن تكرر الخطأ على الشبكة الداخلية، اطلب من مسؤول الشبكة السماح بهذه النطاقات، أو اجعل INTRANET_FORCE_LONGPOLLING = true في js/config.js لتجبر Firestore على long-polling عبر المنفذ 443."
 },
 "resource-exhausted":{
  title:"تم تجاوز حصة Firebase اليومية (resource-exhausted)",
@@ -525,6 +525,30 @@ async function runChecks(onProgress){
      details:[rawMessage(e)],fixes:[explain(e).fix]});
   }
  }
+
+ /* 8.5) بيئة التشغيل والشبكة الداخلية */
+ try{
+  const proto=location.protocol.replace(":","");
+  const details=[];
+  let st="ok";
+  details.push("الرابط: "+location.host+location.pathname);
+  details.push("البروتوكول: "+proto);
+  details.push("حالة الاتصال: "+(navigator.onLine?"متصل":"غير متصل"));
+  details.push("حزم Firebase المحلية: "+(window.firebase?"محمّلة":"غير محمّلة"));
+  if(proto==="http"&&!/^(localhost|127\.0\.0\.1)$/.test(location.hostname)){
+   st="warn";
+   details.push("⚠ النظام يعمل على HTTP داخل الشبكة: تسجيل الدخول وقد يُحفظ التخزين المؤقت بشكل غير موثوق. يُفضّل شهادة داخلية (HTTPS).");
+  }
+  if(!navigator.onLine){ st="warn"; details.push("⚠ الجهاز غير متصل الآن — القراءة من النسخة المخزّنة والكتابة في طابور."); }
+  add({
+   id:"env",title:"بيئة التشغيل والشبكة الداخلية",status:st,
+   summary:st==="ok"?"البيئة مناسبة للعمل المستمر على الشبكة الداخلية":"ملاحظة على بيئة التشغيل",
+   details:details,
+   fixes:(proto==="http"&&!/^(localhost|127\.0\.0\.1)$/.test(location.hostname))
+     ?["اطلب شهادة داخلية (HTTPS) لنشر النظام على الشبكة الداخلية","كبديل مؤقت: استخدمه من localhost أو عبر نفق داخلي مؤمّن"]
+     :[]
+  });
+ }catch(e){}
 
  /* 9) جمع كل ما سبق */
  const fails=res.filter(r=>r.status==="error");

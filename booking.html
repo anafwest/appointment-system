@@ -4,8 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>حجز موعد - قطاع الغرب</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
@@ -148,11 +149,14 @@
 
 </div>
 </div>
-
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+<script src="js/vendor/firebase-app-compat.js"></script>
+<script>window.firebase||document.write('<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"><\/script>');</script>
+<script src="js/vendor/firebase-auth-compat.js"></script>
+<script>window.firebase&&firebase.auth||document.write('<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"><\/script>');</script>
+<script src="js/vendor/firebase-firestore-compat.js"></script>
+<script>window.firebase&&firebase.firestore||document.write('<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"><\/script>');</script>
+<script src="js/vendor/firebase-storage-compat.js"></script>
+<script>window.firebase&&firebase.storage||document.write('<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"><\/script>');</script>
     <script src="js/config.js"></script>
     <script src="js/diagnostics.js"></script>
 <script src="js/appointments.js"></script>
@@ -313,6 +317,9 @@ function submitBooking(){
         document.getElementById("step3").classList.add("active");
         document.getElementById("step1").classList.add("done");
         document.getElementById("step2").classList.add("done");
+        if(!navigator.onLine){
+            notice("أنت غير متصل بالشبكة الآن. تم حفظ حجزك على هذا الجهاز وسيُرسل تلقائياً عند عودة الاتصال.","notice");
+        }
     })
     .catch(err=>{
         saving=false;
