@@ -216,8 +216,7 @@ function loadSyncStatus(){
         box.innerHTML="النظام يعمل الآن على Firebase مباشرة، فلا حاجة للمزامنة.";
         return;
     }
-    fetch("api/sync/status",{credentials:"same-origin"})
-    .then(r=>r.json())
+    window.localApi("GET","/api/sync/status")
     .then(st=>{
         if(!st||st.enabled===undefined){ box.innerHTML="تعذّر قراءة حالة المزامنة."; return; }
         if(!st.enabled){
@@ -231,6 +230,13 @@ function loadSyncStatus(){
             "آخر تشغيل: "+(st.lastRunAt?new Date(st.lastRunAt).toLocaleString("ar-SA"):"لم يتم بعد")+"<br>"+
             (st.running?"<span style='color:#a35c00'>جارٍ التنفيذ الآن…</span><br>":"")+
             (st.lastResult?"رفع: "+lr.pushed+" · تُخطّي: "+lr.skipped+" · أخطاء: "+lr.errors+"<br>":"")+
+            (st.users&&st.users.at
+                ? "الحسابات: "+st.users.synced+" حساباً مُزامناً"+
+                  (st.users.missing&&st.users.missing.length
+                    ? " · <b style='color:#a35c00'>"+st.users.missing.length+" بلا حساب Firebase</b>: "+
+                      st.users.missing.map(u=>u.email).join("، ")
+                    : "")+"<br>"
+                : "")+
             (st.lastError?"<b style='color:#c1121f'>آخر خطأ: "+st.lastError+"</b>":"");
     })
     .catch(()=>{ box.innerHTML="تعذّر الوصول إلى حالة المزامنة."; });
@@ -238,12 +244,10 @@ function loadSyncStatus(){
 function syncNow(){
     const box=document.getElementById("syncBox");
     if(box) box.innerHTML="جارٍ المزامنة مع Firebase…";
-    fetch("api/sync/now",{method:"POST",credentials:"same-origin"})
-    .then(r=>r.json().then(j=>({ok:r.ok,j:j})))
+    window.localApi("POST","/api/sync/now",{})
     .then(res=>{
-        if(!res.ok) throw new Error((res.j&&res.j.error&&res.j.error.message)||"فشل التشغيل");
-        const lr=res.j.lastResult||{};
-        showToast("تمت المزامنة — رفع "+lr.pushed+" موعداً");
+        const lr=res.lastResult||{};
+        showToast("تمت المزامنة — رفع "+(lr.pushed||0)+" موعداً");
         loadSyncStatus();
     })
     .catch(e=>{ showToast(e.message,"error"); loadSyncStatus(); });

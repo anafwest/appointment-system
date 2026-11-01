@@ -9,6 +9,34 @@
 (function(){
     "use strict";
 
+    /* دالة اتصال عامة (تعمل حتى على المتصفحات القديمة داخل الشبكة) */
+    window.localApi=function(method,url,body){
+        return new Promise(function(resolve,reject){
+            let xhr;
+            try{ xhr=new XMLHttpRequest(); }
+            catch(e){ const er=new Error("المتصفح لا يدعم الاتصال"); er.code="unavailable"; reject(er); return; }
+            xhr.open(method,url,true);
+            xhr.setRequestHeader("Content-Type","application/json");
+            xhr.setRequestHeader("Accept","application/json");
+            xhr.withCredentials=true;
+            xhr.timeout=30000;
+            xhr.onload=function(){
+                let data=null;
+                try{ data=JSON.parse(xhr.responseText||"null"); }catch(e){ data=null; }
+                if(xhr.status>=200&&xhr.status<300) resolve(data);
+                else {
+                    const er=new Error((data&&data.error&&data.error.message)||("HTTP "+xhr.status));
+                    er.code=(data&&data.error&&data.error.code)||"internal";
+                    reject(er);
+                }
+            };
+            xhr.onerror=function(){ const er=new Error("تعذّر الوصول إلى الخادم الداخلي"); er.code="unavailable"; reject(er); };
+            xhr.ontimeout=function(){ const er=new Error("انتهت مهلة الطلب"); er.code="deadline-exceeded"; reject(er); };
+            try{ xhr.send(body===undefined?null:JSON.stringify(body)); }
+            catch(e){ const er=new Error("تعذّر إرسال الطلب"); er.code="unavailable"; reject(er); }
+        });
+    };
+
     const params=new URLSearchParams(location.search);
     const forced=params.get("mode");
     if(forced==="local"||forced==="firebase"){

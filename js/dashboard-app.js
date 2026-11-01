@@ -705,7 +705,7 @@ function loadUsers(){
         users.forEach(u=>{
             let actions='';
             if(u.email!==currentUser.email){
-                actions='<button class="btn btn-danger btn-sm" onclick="handleDeleteUser(\''+esc(u.id)+'\',\''+esc(u.name)+'\')">حذف</button> <button class="btn btn-warning btn-sm" onclick="handleResetPassword(\''+esc(u.email)+'\',\''+esc(u.name)+'\')">إعادة كلمة المرور</button>';
+                actions='<button class="btn btn-danger btn-sm" onclick="handleDeleteUser(\''+esc(u.id)+'\',\''+esc(u.name)+'\')">حذف</button> <button class="btn btn-warning btn-sm" onclick="handleResetPassword(\''+esc(u.email)+'\',\''+esc(u.name)+'\',\''+esc(u.id)+'\')">إعادة كلمة المرور</button>';
             }
             html+='<tr><td>'+esc(u.name)+'</td><td>'+esc(u.email)+'</td><td>'+esc(getRoleName(u.role))+'</td><td>'+esc(u.dept)+'</td><td>'+actions+'</td></tr>';
         });
@@ -725,7 +725,22 @@ function handleDeleteUser(uid,name){
     });
 }
 
-function handleResetPassword(email,name){
+function handleResetPassword(email,name,uid){
+    // الوضع المحلي: كلمة المرور محفوظة في الخادم الداخلي، لذا يضبطها مدير النظام مباشرة
+    if(window.BACKEND_MODE==="local"){
+        let pw=prompt("كلمة مرور جديدة للمستخدم "+name+" (6 أحرف على الأقل):");
+        if(pw===null) return;
+        if(String(pw).length<6){ showToast("كلمة المرور قصيرة جداً","error"); return; }
+        window.localApi("POST","/api/users/"+encodeURIComponent(uid)+"/password",{password:pw})
+        .then(()=>{
+            showToast("تم تغيير كلمة المرور — أبلغ المستخدم بها");
+        })
+        .catch(err=>{
+            let ex=DIAG.record(err,"تغيير كلمة مرور");
+            showToast(ex.title,"error");
+        });
+        return;
+    }
     auth.sendPasswordResetEmail(email).then(()=>{
         showToast("تم إرسال رابط إعادة تعيين كلمة المرور إلى "+email);
     }).catch(err=>{

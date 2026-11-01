@@ -35,7 +35,7 @@ function makeJwt(sa, scope) {
   return input + '.' + signature;
 }
 async function getToken(sa) {
-  const assertion = makeJwt(sa, 'https://www.googleapis.com/auth/datastore');
+  const assertion = makeJwt(sa, 'https://www.googleapis.com/auth/datastore https://www.googleapis.com/auth/identitytoolkit');
   const body = 'grant_type=' + encodeURIComponent('urn:ietf:params:oauth:grant-type:jwt-bearer') +
     '&assertion=' + encodeURIComponent(assertion);
   const res = await fetch('https://oauth2.googleapis.com/token', {
@@ -136,6 +136,88 @@ async function writeRemote(token, project, coll, id, doc) {
   }
 }
 
+/* ---------------- Firebase Authentication (حسابات) ---------------- */
+const DEFAULT_API_KEY = process.env.FIREBASE_API_KEY || 'AIzaSyAfzaFsDgifH8gtkgFSq6NsUh-FUfwkrfM';
+
+async function lookupAuthUser(token, project, email) {
+  const res = await fetch('https://identitytoolkit.googleapis.com/v1/projects/' + project + '/accounts:lookup', {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: [email] })
+  });
+  if (!res.ok) throw new Error('البحث عن الحساب فشل: HTTP ' + res.status);
+  const j = await res.json();
+  const u = (j.users || [])[0];
+  return u ? { uid: u.localId, email: u.email, disabled: !!u.disabled } : null;
+}
+
+/* إنشاء حساب في Firebase Authentication (بنفس البريد وكلمة المرور) */
+async function createAuthUser(email, password, name) {
+  const res = await fetch('https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=' + DEFAULT_API_KEY, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: email, password: password, displayName: name, returnSecureToken: true })
+  });
+  const j = await res.json();
+  if (!res.ok || j.error) {
+    const code = j.error && j.error.message;
+    if (code === 'EMAIL_EXISTS') {
+      const sa = loadServiceAccount();
+      const token = await getToken(sa);
+      const found = await lookupAuthUser(token, sa.project_id, email);
+      if (found) return found;
+    }
+    throw new Error(code || ('HTTP ' + res.status));
+  }
+  return { uid: j.localId, email: email };
+}
+
+/* كتابة مستند مستخدم واحد في Firestore بمفتاح uid الخاص بـFirebase */
+async function pushUserDoc(uid, user) {
+  const sa = loadServiceAccount();
+  const token = await getToken(sa);
+  const doc = {
+    name: user.name || '',
+    email: user.email || '',
+    role: user.role || 'department',
+    dept: user.dept || '',
+    updatedAt: new Date().toISOString(),
+    syncedFrom: 'local-server'
+  };
+  await writeRemote(token, sa.project_id, 'users', uid, doc);
+  return doc;
+}
+
+/* مزامنة كل المستخدمين المحليين مع حسابات Firebase (تطابق بالبريد) */
+async function syncUsers(opts) {
+  opts = opts || {};
+  const sa = loadServiceAccount();
+  const project = sa.project_id;
+  const token = await getToken(sa);
+  const db = opts.data || loadLocal();
+  const users = (db.collections && db.collections.users) || {};
+  const out = { synced: 0, missing: [], errors: 0, details: [] };
+
+  for (const uid of Object.keys(users)) {
+    const u = users[uid];
+    if (!u.email) continue;
+    try {
+      const found = await lookupAuthUser(token, project, String(u.email).toLowerCase());
+      if (!found) { out.missing.push({ localUid: uid, name: u.name, email: u.email }); continue; }
+      await writeRemote(token, project, 'users', found.uid, {
+        name: u.name, email: u.email, role: u.role || 'department', dept: u.dept || '',
+        updatedAt: new Date().toISOString(), syncedFrom: 'local-server'
+      });
+      u.firebaseUid = found.uid;
+      out.synced++;
+    } catch (e) {
+      out.errors++;
+      out.details.push({ email: u.email, error: e.message });
+    }
+  }
+  return out;
+}
+
 /* ---------------- محلي ---------------- */
 function loadLocal() {
   if (!fs.existsSync(DB_FILE)) throw new Error('لا توجد قاعدة بيانات محلية: ' + DB_FILE);
@@ -231,5 +313,5 @@ async function status() {
 module.exports = {
   serviceAccountPath, hasServiceAccount, loadServiceAccount,
   makeJwt, getToken, toValue, fromValue, toFields, stamp,
-  push, pull, status, DB_FILE, SA_FILE
+  push, pull, status, syncUsers, createAuthUser, pushUserDoc, lookupAuthUser, DB_FILE, SA_FILE, DEFAULT_API_KEY
 };

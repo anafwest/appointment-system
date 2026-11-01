@@ -173,7 +173,8 @@ const syncState = {
   lastRunAt: null,
   lastResult: null,
   lastError: null,
-  runs: 0
+  runs: 0,
+  users: { at: null, synced: 0, missing: [], errors: 0 }
 };
 let syncTimer = null;
 let syncDebounce = null;
@@ -220,6 +221,7 @@ async function runSync(reason) {
       pulled: pullRes ? pullRes.added + pullRes.updated : 0,
       durationMs: Date.now() - started
     };
+    await syncUsersIfChanged(mod);
     if (pushRes.pushed || (pullRes && (pullRes.added || pullRes.updated))) {
       syncLogLine('تمت المزامنة: رفع ' + pushRes.pushed + ' · سحب ' + (pullRes ? pullRes.added + pullRes.updated : 0) +
         ' · تُخطّي ' + pushRes.skipped + ' · أخطاء ' + pushRes.errors + ' (' + (reason || 'scheduled') + ')');
@@ -236,6 +238,39 @@ async function runSync(reason) {
     syncState.running = false;
   }
   return syncState;
+}
+
+let lastUsersSignature = null;
+function usersSignature() {
+  const users = (db.collections && db.collections.users) || {};
+  return JSON.stringify(Object.keys(users).sort().map(k => [users[k].email, users[k].name, users[k].role, users[k].dept]));
+}
+
+async function syncUsersIfChanged(mod) {
+  if (!mod || !mod.syncUsers) return null;
+  const sig = usersSignature();
+  if (sig === lastUsersSignature) return null;
+  try {
+    const res = await mod.syncUsers({ data: db });
+    syncState.users = {
+      at: new Date().toISOString(),
+      synced: res.synced,
+      missing: res.missing.map(m => ({ name: m.name, email: m.email })),
+      errors: res.errors
+    };
+    if (res.synced) syncLogLine('مزامنة الحسابات: ' + res.synced + ' حساباً' +
+      (res.missing.length ? ' · بدون حساب Firebase: ' + res.missing.length : ''));
+    if (res.missing.length) {
+      syncLogLine('حسابات محلية بلا حساب Firebase: ' + res.missing.map(m => m.email).join(', '));
+    }
+    lastUsersSignature = sig;
+    save();
+    return res;
+  } catch (e) {
+    syncState.users = { at: new Date().toISOString(), synced: 0, missing: [], errors: 1 };
+    syncLogLine('تعذّرت مزامنة الحسابات: ' + e.message);
+    return null;
+  }
 }
 
 function scheduleSyncSoon(reason) {
@@ -495,6 +530,7 @@ async function handleApi(req, res, url) {
       lastResult: syncState.lastResult,
       lastError: syncState.lastError,
       runs: syncState.runs,
+      users: syncState.users,
       serviceAccount: (loadSyncModule() || {}).serviceAccountPath ? loadSyncModule().serviceAccountPath() : null
     });
   }
@@ -535,7 +571,44 @@ async function handleApi(req, res, url) {
       password: hashPassword(body.password), createdAt: new Date().toISOString()
     };
     save(); broadcast('users');
+    if (syncState.enabled) {
+      const email0 = email;
+      const name0 = body.name;
+      Promise.resolve().then(async () => {
+        try {
+          const mod = loadSyncModule();
+          const acc = await mod.createAuthUser(email0, body.password, name0);
+          const u = coll('users')[uid];
+          if (u) {
+            u.firebaseUid = acc.uid;
+            delete u.authPending;
+            await mod.pushUserDoc(acc.uid, u);
+            save();
+            broadcast('users');
+            lastUsersSignature = null;
+          }
+          syncLogLine('أُنشئ حساب Firebase للمستخدم ' + email0);
+        } catch (e) {
+          const u = coll('users')[uid];
+          if (u) { u.authPending = true; save(); }
+          syncLogLine('تعذّر إنشاء حساب Firebase للمستخدم ' + email0 + ' (' + e.message + ') — أنشئه من لوحة Firebase');
+        }
+      });
+    }
     return send(res, 200, { uid });
+  }
+  if (/^\/api\/users\/[^/]+\/password$/.test(p) && req.method === 'POST') {
+    if (!isAdmin(user)) return fail(res, 403, 'permission-denied', 'تغيير كلمات المرور لمدير النظام فقط');
+    const uid = p.split('/')[3];
+    const users = coll('users');
+    if (!users[uid]) return fail(res, 404, 'not-found', 'المستخدم غير موجود');
+    const body = await readBody(req);
+    const pw = String(body.password || '');
+    if (pw.length < 6) return fail(res, 400, 'invalid-argument', 'كلمة المرور يجب أن تكون 6 أحرف على الأقل');
+    users[uid].password = hashPassword(pw);
+    users[uid].passwordChangedAt = new Date().toISOString();
+    save();
+    return send(res, 200, { ok: true });
   }
   if (p.startsWith('/api/users/') && req.method === 'DELETE') {
     if (!isAdmin(user)) return fail(res, 403, 'permission-denied', 'إدارة المستخدمين لمدير النظام فقط');
