@@ -1,0 +1,8 @@
+# المرفقات وملفات المواعيد تُخزَّن في مستودع منفصل (anafwest/appointments-riyadh)
+# وتُجلب وقت التشغيل عبر raw.githubusercontent.com — لا داعي لنسخها هنا.
+attachments/
+files/
+monitor/
+.github/
+*.doc
+*.xls
