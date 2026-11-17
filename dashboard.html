@@ -959,12 +959,14 @@ function showDetails(id){
         });
 
         let attachHtml="";
-        (apt.attachments||[]).forEach(a=>{
+        window.__previewAptId=apt.id;
+        window.__previewAppointment=apt;
+        (apt.attachments||[]).forEach((a,idx)=>{
             let href=a.data||a.url||"#";
             let isImg=a.type&&a.type.startsWith("image/");
             let preview='';
             if(isImg&&a.data) preview='<br><img src="'+a.data+'" style="max-width:200px;max-height:150px;border-radius:8px;margin-top:5px">';
-            attachHtml+='<div class="attachment-item"><span>'+a.name+' ('+(a.size?(a.size/1024).toFixed(1)+'KB':'')+')</span><a href="'+href+'" target="_blank" '+(a.data?'download="'+a.name+'"':'')+'>تحميل</a>'+preview+'</div>';
+            attachHtml+='<div class="attachment-item"><span>'+a.name+' ('+(a.size?(a.size/1024).toFixed(1)+'KB':'')+')</span> <button class="btn btn-primary btn-sm" onclick="previewAttachment('+idx+')">معاينة</button> <a href="'+href+'" target="_blank" '+(a.data?'download="'+a.name+'"':'')+'>تحميل</a>'+preview+'</div>';
         });
         if(!apt.attachments||apt.attachments.length===0) attachHtml='<p style="color:#aaa;font-size:13px">لا توجد مرفقات</p>';
 
@@ -1056,6 +1058,148 @@ function handleAddNote(id){
 
 function closeModal(id){
     document.getElementById(id).classList.remove("active");
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   معاينة المرفق داخل التطبيق (بدل تنزيل الملف)
+   السبب: المرفق قد يكون data URL (Base64) أو رابط Firebase Storage، وكان
+   الفتح بـ <a download> ينزّل الملف. هنا نعرضه داخل نافذة المعاينة نفسها:
+     • الصور  → <img>
+     • PDF    → <iframe> بنفس نوع application/pdf (يتجنّب تنزيل المتصفح)
+     • فيديو/صوت → <video>/<audio>
+   ونكتشف النوع الحقيقي من بايتات الملف (magic bytes) لا من ترويسة الاستجابة.
+   ══════════════════════════════════════════════════════════════════════════════ */
+const ATT_PREVIEW_STATE={url:null,name:""};
+
+function attSniffMime(bytes,name){
+    const b=bytes||[];
+    const str=(from,len)=>{let s="";for(let i=from;i<from+len&&i<b.length;i++)s+=String.fromCharCode(b[i]);return s;};
+    const starts=(from,sig)=>{if(b.length<from+sig.length)return false;for(let i=0;i<sig.length;i++)if(b[from+i]!==sig[i])return false;return true;};
+    if(str(0,5)==="%PDF-")return "application/pdf";
+    if(starts(0,[0xFF,0xD8,0xFF]))return "image/jpeg";
+    if(starts(0,[0x89,0x50,0x4E,0x47,0x0D,0x0A,0x1A,0x0A]))return "image/png";
+    if(str(0,6)==="GIF87a"||str(0,6)==="GIF89a")return "image/gif";
+    if(str(0,4)==="RIFF"&&str(8,4)==="WEBP")return "image/webp";
+    if(b.length>12&&str(4,4)==="ftyp")return "video/mp4";
+    const ext=(String(name||"").match(/\.([A-Za-z0-9]{1,6})$/)||[])[1];
+    const byExt={pdf:"application/pdf",jpg:"image/jpeg",jpeg:"image/jpeg",png:"image/png",gif:"image/gif",webp:"image/webp",mp4:"video/mp4",mp3:"audio/mpeg",wav:"audio/wav"};
+    return byExt[(ext||"").toLowerCase()]||"";
+}
+
+function attOverlay(){
+    let ov=document.getElementById("attPreviewOverlay");
+    if(ov) return ov;
+    ov=document.createElement("div");
+    ov.id="attPreviewOverlay";
+    ov.innerHTML=
+        '<div class="ap-bar">'+
+            '<button type="button" class="ap-btn" data-act="close">✕ إغلاق</button>'+
+            '<div class="ap-title" id="ap-title">مرفق</div>'+
+            '<button type="button" class="ap-btn" data-act="tab" disabled>↗ فتح في نافذة</button>'+
+            '<button type="button" class="ap-btn" data-act="download" disabled>⬇️ تحميل</button>'+
+        '</div>'+
+        '<div class="ap-body" id="ap-body"></div>';
+    ov.addEventListener("click",function(e){
+        let btn=e.target.closest?e.target.closest(".ap-btn"):null;
+        if(!btn){ if(e.target===ov) closeAttPreview(); return; }
+        let act=btn.getAttribute("data-act");
+        if(act==="close") closeAttPreview();
+        else if(act==="tab") window.open(ATT_PREVIEW_STATE.url,"_blank");
+        else if(act==="download"){
+            let a=document.createElement("a");
+            a.href=ATT_PREVIEW_STATE.url;
+            a.download=ATT_PREVIEW_STATE.name||"attachment";
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+        }
+    });
+    document.body.appendChild(ov);
+    return ov;
+}
+
+function closeAttPreview(){
+    let ov=document.getElementById("attPreviewOverlay");
+    if(ov) ov.classList.remove("open");
+    if(ATT_PREVIEW_STATE.url){ try{URL.revokeObjectURL(ATT_PREVIEW_STATE.url);}catch(e){} }
+    ATT_PREVIEW_STATE.url=null;
+    let b=document.getElementById("ap-body");
+    if(b) b.innerHTML="";
+}
+
+function previewAttachment(index){
+    let apt=window.__previewAppointment;
+    if(!apt){
+        for(let i=0;i<allAppointments.length;i++){
+            if(allAppointments[i].id===window.__previewAptId){ apt=allAppointments[i]; break; }
+        }
+    }
+    if(!apt) return;
+    let a=(apt.attachments||[])[index];
+    if(!a) return;
+
+    attOverlay();
+    ATT_PREVIEW_STATE.name=a.name||"مرفق";
+    document.getElementById("ap-title").textContent=ATT_PREVIEW_STATE.name;
+    let btns=document.querySelectorAll("#attPreviewOverlay .ap-btn");
+    btns.forEach(b=>{ if(b.getAttribute("data-act")!=="close") b.disabled=true; });
+    document.getElementById("ap-body").innerHTML='<div class="ap-msg"><div class="ap-spin"></div>جارٍ تحميل المرفق…</div>';
+    document.getElementById("attPreviewOverlay").classList.add("open");
+
+    let src=a.data||a.url;
+    if(!src){
+        document.getElementById("ap-body").innerHTML='<div class="ap-msg">⚠️ لا يوجد ملف مرفق لعرضه.</div>';
+        return;
+    }
+
+    // نحتاج البايتات لتحديد النوع الحقيقي (Base64 أو رابط)
+    let bytesPromise;
+    if(a.data){
+        bytesPromise=Promise.resolve(a.data.split(",")[1]||"").then(b64=>{
+            try{ return Uint8Array.from(atob(b64),c=>c.charCodeAt(0)); }catch(e){ return new Uint8Array(0); }
+        });
+    }else{
+        bytesPromise=fetch(src).then(r=>r.blob()).then(b=>b.arrayBuffer()).then(ab=>new Uint8Array(ab)).catch(()=>new Uint8Array(0));
+    }
+
+    bytesPromise.then(bytes=>{
+        let mime=attSniffMime(bytes,a.name)||a.type||"application/octet-stream";
+        if(mime==="text/plain"||mime==="application/octet-stream"){
+            if(mime==="application/octet-stream"){
+                if(mime.indexOf("pdf")!==-1) mime="application/pdf";
+            }
+        }
+        let blobUrl;
+        if(a.data){
+            let bin=atob(a.data.split(",")[1]||"");
+            let arr=new Uint8Array(bin.length);
+            for(let k=0;k<bin.length;k++) arr[k]=bin.charCodeAt(k);
+            blobUrl=URL.createObjectURL(new Blob([arr],{type:mime}));
+        }else{
+            blobUrl=src;
+        }
+        ATT_PREVIEW_STATE.url=blobUrl;
+        document.querySelectorAll("#attPreviewOverlay .ap-btn").forEach(b=>{
+            if(b.getAttribute("data-act")!=="close") b.disabled=false;
+        });
+
+        let body=document.getElementById("ap-body");
+        let nameEsc=(ATT_PREVIEW_STATE.name||"").replace(/[&<>"]/g,"");
+        if(mime.indexOf("image/")===0){
+            body.innerHTML='<img src="'+blobUrl+'" alt="'+nameEsc+'">';
+        }else if(mime.indexOf("pdf")!==-1){
+            body.innerHTML='<iframe src="'+blobUrl+'" title="'+nameEsc+'"></iframe>';
+        }else if(mime.indexOf("video/")===0){
+            body.innerHTML='<video src="'+blobUrl+'" controls playsinline></video>';
+        }else if(mime.indexOf("audio/")===0){
+            body.innerHTML='<div class="ap-msg" style="width:100%"><audio src="'+blobUrl+'" controls></audio></div>';
+        }else{
+            body.innerHTML='<div class="ap-msg">📄 هذا النوع من الملفات لا يُعرض داخل النظام.<br>استخدم زر «⬇️ تحميل».<br>'+nameEsc+'</div>';
+        }
+    }).catch(err=>{
+        console.error(err);
+        document.getElementById("ap-body").innerHTML='<div class="ap-msg">⚠️ تعذّر تحميل المرفق.</div>';
+    });
 }
 
 async function loadUsers(){
